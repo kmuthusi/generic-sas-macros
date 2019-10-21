@@ -1,7 +1,7 @@
 
 /*********************************************************************************
 **********************************************************************************
-**    Copyright (C) 2018, Muthusi, Jacques										**
+** 					Copyright (C) 2018, Muthusi, Jacques						**
 **																				**
 ** Description  : Generic SAS program to create publication ready tables from 	**
 ** 				  logistic regression models using survey or non-survey data.	**
@@ -107,11 +107,25 @@
 **																				**
 ** Added %runquit() macro to enforce in-built SAS validation checks on 			**
 ** input parameters																**
+** Added code to validate input parameters										**
+**																				**
+**       Modified by  : Muthusi, Jacques                   Date: 05JUN2019 	    **
+**																				**
+** Changed number of decimal points for OR (95% CI) from 1 to 2					**
+**																				**
 **																				**
 **********************************************************************************
 *********************************************************************************/
 
 options mlogic mprint symbolgen;
+
+%*  macro to does an error check then stop SAS from continuing to process the rest of the submitted statements if error is present;
+%macro runquit;
+	; run; quit;
+	%if &syserr. ne 0 %then %do;
+	%abort cancel;
+	%end;
+%mend runquit;
 
 %* start of simple logistic regression macro;
 
@@ -129,7 +143,32 @@ options mlogic mprint symbolgen;
 					condition 	= ,
 					print		= YES); 
 
-%runquit;
+%* validation for input parameters;
+
+%if %length(&dataset) eq 0 %then %do;
+	%put ERROR: Please provide name of dataset, dataset=;
+	%abort;
+%end;
+
+%if %length(&catvars) eq 0 and %length(&contvars) eq 0 %then %do;
+	%put ERROR: Please provide atleast one factor or continuous variable, catvars= or contvars=;
+%abort;
+%end;
+
+%if %length(&catvars) ne 0 and %length(&class) eq 0 %then %do;
+	%put ERROR: Please provide class statement for categorical variables, class=;
+%abort;
+%end;
+
+%if %length(&outcome) eq 0 %then %do;
+	%put ERROR: Please provide outcome variable, outcome=;
+%abort;
+%end;
+
+%if %length(&outevent) eq 0 %then %do;
+	%put ERROR: Please provide category of outcome variable to model, outevent=;
+%abort;
+%end;
 
 %* clear all temporary data files before starting;
 data _parms_c _orstat _gstats _freq logistic_table logistic_table_c logistic_table_n _var_ xx_dataset; run;
@@ -140,6 +179,11 @@ ods exclude all;
 
 data xx_dataset;
  	set &dataset;
+		%if %length(&domain) eq 0 %then %do; 
+			domain_all=1;
+			%let domain=%str(domain_all);
+			%let domvalue=1;
+		%end;
 		&condition;
 		if &outcome ne . ;
  run;
@@ -328,8 +372,8 @@ data _parms_c;
 length Parameter $25 ClassVal0 $50 p_value $8;
 set _parms_c;
 	Parameter = variable;
-	if ProbChiSq < 0.01 then p_value = "<.01"; 
-	else p_value = put(ProbChiSq,8.2);
+	if ProbChiSq < 0.001 then p_value = "<.001"; 
+	else p_value = put(ProbChiSq,8.3);
 	if parameter="Intercept" then delete;
 keep parameter ClassVal0  p_value;
 if &domain=&domvalue then output;
@@ -345,7 +389,7 @@ data _orstat;
 length Parameter $25 ClassVal0 $50;
 set _orstat;
 	Parameter=scan(effect,1);
-	OR_CI=trim(left(put(OddsRatioEst,4.1)))||" ("||trim(left(put(LowerCL,4.1)))||"-"||trim(left(put(UpperCL,4.1)))||")";
+	OR_CI=trim(left(put(OddsRatioEst,4.2)))||" ("||trim(left(put(LowerCL,4.2)))||"-"||trim(left(put(UpperCL,4.2)))||")";
 keep parameter ClassVal0 OR_CI;
 if &domain=&domvalue then output;
 run;
@@ -423,7 +467,7 @@ proc sort data = _parms_c; by classval0;
 data _parms_c; 
 merge _parms_c _allfreq; 
 	by classval0;
-	_nfreq_percent=trim(left(_nfreq))||" ("||trim(left(put(_npercent,4.1)))||")";
+	_nfreq_percent=trim(left(_nfreq))||" ("||trim(left(put(_npercent,4.2)))||")";
 	if parameter=" " then parameter="&catvar";
 	if OR_CI=" " and ClassVal0 ne " " then OR_CI="ref";
 	chartab_order=_n_;
@@ -435,8 +479,8 @@ data _gstats;
 length Parameter $25 g_p_value $8;
 set _gstats;
 	Parameter=Effect;
-	if ProbChiSq < 0.01 then g_p_value = "<.01"; 
-	else g_p_value = put(ProbChiSq,8.2);
+	if ProbChiSq < 0.001 then g_p_value = "<.001"; 
+	else g_p_value = put(ProbChiSq,8.3);
 	if &domain=&domvalue then output;
 	keep Parameter g_p_value;
 run;
@@ -580,8 +624,8 @@ length Parameter $25 ClassVal0 $50 p_value $8;
 set _parms_n;
 	Parameter = variable;
 	ClassVal0= "";
-	if ProbChiSq < 0.01 then p_value = "<.01"; 
-	else p_value = put(ProbChiSq,8.2);
+	if ProbChiSq < 0.001 then p_value = "<.001"; 
+	else p_value = put(ProbChiSq,8.3);
 	g_p_value=p_value;
 	if parameter="Intercept" then delete;
 	if &domain=&domvalue then output;
@@ -594,7 +638,7 @@ length Parameter $25 ClassVal0 $50;
 set _orstat;
 	Parameter=effect;
 	ClassVal0= "";
-	OR_CI=trim(left(put(OddsRatioEst,4.1)))||" ("||trim(left(put(LowerCL,4.1)))||"-"||trim(left(put(UpperCL,4.1)))||")";
+	OR_CI=trim(left(put(OddsRatioEst,4.2)))||" ("||trim(left(put(LowerCL,4.2)))||"-"||trim(left(put(UpperCL,4.2)))||")";
 	if &domain=&domvalue then output;
 keep parameter ClassVal0 OR_CI;
 run;
@@ -671,7 +715,7 @@ set _nfreqn;
 	Parameter=upcase("&contvar");
 	_nfreq=Frequency;
 	_npercent=RowPercent;
-	_nfreq_percent=trim(left(_nfreq))||" ("||trim(left(put(_npercent,4.1)))||")";
+	_nfreq_percent=trim(left(_nfreq))||" ("||trim(left(put(_npercent,4.2)))||")";
 	keep Parameter VarName _nfreq_percent;
 run;
 
@@ -766,8 +810,8 @@ data _parms;
 length Parameter $25 ClassVal0 $50 M_p_value $8;
 set _parms;
 	Parameter = variable;
-	if ProbChiSq < 0.01 then M_p_value = "<.01"; 
-	else M_p_value = put(ProbChiSq,8.2);
+	if ProbChiSq < 0.001 then M_p_value = "<.001"; 
+	else M_p_value = put(ProbChiSq,8.3);
 	if parameter="Intercept" then delete;
 	if &domain=&domvalue then output;
 keep  parameter ClassVal0  M_p_value ;
@@ -783,7 +827,7 @@ data _orstat;
 length Parameter $25 ClassVal0  $50;
 set _orstat;
 	Parameter=scan(effect,1);
-	M_OR_CI=trim(left(put(OddsRatioEst,4.1)))||" ("||trim(left(put(LowerCL,4.1)))||"-"||trim(left(put(UpperCL,4.1)))||")";
+	M_OR_CI=trim(left(put(OddsRatioEst,4.2)))||" ("||trim(left(put(LowerCL,4.2)))||"-"||trim(left(put(UpperCL,4.2)))||")";
 	if &domain=&domvalue then output;
 keep parameter ClassVal0 M_OR_CI;
 run;
@@ -811,8 +855,8 @@ data _gstats;
 length Parameter $25 M_g_p_value $8;
 set _gstats;
 	Parameter=Effect;
-	if ProbChiSq < 0.01 then M_g_p_value = "<.01"; 
-	else M_g_p_value = put(ProbChiSq,8.2);
+	if ProbChiSq < 0.001 then M_g_p_value = "<.001"; 
+	else M_g_p_value = put(ProbChiSq,8.3);
 	if &domain=&domvalue then output;
 	keep Effect Parameter M_g_p_value;
 run;
@@ -860,7 +904,31 @@ ods exclude none;
 					  outdir	=,
 					  tabletitle=);
 
-%runquit;
+%* code to validate input parameters;
+%if %length(&outcome) eq 0 %then %do;
+	%put ERROR: Please provide outcome variable, outcome=;
+%abort;
+%end;
+
+%if %length(&outevent) eq 0 %then %do;
+	%put ERROR: Please provide category of outcome variable to model, outevent=;
+%abort;
+%end;
+
+%if %length(&outdir) eq 0 %then %do;
+	%put ERROR: Please provide output directory/path, outdir=;
+%abort;
+%end;
+
+%if %length(&tablename) eq 0 %then %do;
+	%put ERROR: Please provide shortname for output table, tablename=;
+%abort;
+%end;
+
+%if %length(&title) eq 0 %then %do;
+	%put ERROR: Please provide title of output table, title=;
+%abort;
+%end;
 
 data _null_; set xx_dataset;
 	call symput("outcomelab", vlabel(&outcome));
@@ -927,10 +995,3 @@ ods rtf close;
 
 %mend svy_printlogit;
 
-%*  macro to does an error check then stop SAS from continuing to process the rest of the submitted statements if error is present;
-%macro runquit;
-	; run; quit;
-	%if &syserr. ne 0 %then %do;
-	%abort cancel;
-	%end;
-%mend runquit;
