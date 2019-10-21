@@ -89,18 +89,33 @@
 **                                                                         	    	**
 **						Fixed %charvar macro										**
 **                                                                         	    	**
+**       Modified by  : Muthusi, Jacques                  Date: 29APR2019       	**
+**                                                                         	    	**
+**						Added statements for variance estimation methods			**
+**                                                                         	    	**
+**       Modified by  : Muthusi, Jacques                  Date: 29JUN2019       	**
+**                                                                         	    	**
+**						Updated statements for validating input parameters			**
+**                                                                         	    	**
 **************************************************************************************
 **************************************************************************************;
 
 options mlogic mprint symbolgen;
 
 * helper macro to test for error and exit if so -PWY;
-%macro runquit;
+%macro runquit();
   ; run; quit;
   %if &syserr. ne 0 %then %do;
      %abort cancel;
   %end;
 %mend runquit;
+
+%let _commandstring=%nrstr(;);
+%let _commandspace=%nrstr( );
+
+data _null_;
+%put &_commandstring ;
+run;
 
 %macro svy_freqs(_data=,
 				 _condition=,
@@ -108,13 +123,17 @@ options mlogic mprint symbolgen;
 				 _factors=,
 				 _contvars=,
 				 _byvar=,
-				 _missval=.,
+				 _missval_lab=.,
 				 _outvalue=,
 				 _domain=,
 				 _domainvalue=,
 				 _strata=,
 				 _cluster=,
                  _weight=,
+				 _varmethod=,
+				 _rep_weights_values=,
+				 _varmethod_opts=,
+				 _missval_opts=,
 				 _idvar=,
 				 _cat_type=,
 				 _cont_type=,
@@ -126,22 +145,111 @@ options mlogic mprint symbolgen;
 
 data _dataset re_dataset xx_dataset _final_report_freq _report_freq _final_report_cont _report_cont _final_report ; run;
 
+%* validation for input parameters;
+	%if %length(&_data) eq 0 %then %do;
+		%put ERROR: Please provide name of dataset, _data=;
+		%abort;
+	%end;
+	
+	%if %length(&_factors) eq 0 and %length(&_contvars) eq 0 %then %do;
+		%put ERROR: Please provide atleast one factor or continuous variable, _factors= or _contvars=;
+	%abort;
+	%end;
+
+	%if %length(&_factors) ne 0 and %length(&_cat_type) eq 0 %then %do;
+		%put ERROR: Please provide type of analysis for &_factors., _cat_type=;
+	%abort;
+	%end;
+
+	%if %length(&_contvars) ne 0 and %length(&_cont_type) eq 0 %then %do;
+		%put ERROR: Please provide type of analysis for &_contvars., _cont_type=;
+	%abort;
+	%end;
+
+	%if %length(&_byvar) eq 0 %then %do;
+		%put ERROR: Please provide by-group variable, _byvar=;
+	%abort;
+	%end;
+
+	%if %length(&_idvar) eq 0 %then %do;
+		%put ERROR: Please provide unique identification variable, _idvar=;
+	%abort;
+	%end;
+
+	%if %length(&_outdir) eq 0 %then %do;
+		%put ERROR: Please provide output directory/path, _outdir=;
+	%abort;
+	%end;
+
+	%if %length(&_tablename) eq 0 %then %do;
+		%put ERROR: Please provide shortname for output table, _tablename=;
+	%abort;
+	%end;
+
+	%if %length(&_title) eq 0 %then %do;
+		%put ERROR: Please provide title of output table, _title=;
+	%abort;
+	%end;
+
+	%if %length(&_missval_lab) eq 0 %then %do;
+		%put ERROR: Please provide missing value label, _missval_lab=;
+	%abort;
+	%end;
+
 %* prepare dataset;
 data _dataset;
 set &_data;
-	&_condition;
-	%if &_domain eq %then %do; 
+	%if %length(&_domain) eq 0 %then %do; 
 		domain_all=1;
-		%let _domain=domain_all;
+		%let _domain=%str(domain_all);
 		%let _domainvalue=1;
 	%end;
- 	%if &_outcome eq %then %do; 
+ 	%if %length(&_outcome) eq 0 %then %do; 
 		freq=1;
-		%let _outcome=freq;
+		%let _outcome=%str(freq);
+		%let _outvalue=1;
 	%end;
-	%runquit;
-run;
 
+%* show or suppress missing values;
+	%if &_missval_opts. eq missing %then %do;
+		array c{*} _numeric_;
+		array a{*} _numeric_;
+		do i=1 to dim(a);
+		 	c{i} = a{vvalue(i)};
+				if a{i} = &_missval_lab. then a{i} = 999; 
+				do i=1 to dim(c);
+					if c{i}="999" then c{i}="Missing"; 
+				end;
+			drop i;
+		end;
+	%end;
+
+	%else %do;
+		array b{*} _numeric_;
+			do i=1 to dim(b);
+				if b{i}=&_missval_lab. then b{i} = .;
+			drop i;
+			end;
+	%end;
+
+	%if %length(&_condition) ne 0 %then %do; 
+		%if %length(&_weight) ne 0 %then %do; 
+			&_condition and &_byvar ne &_missval_lab and &_byvar ne . and &_weight > 0 
+		%end;
+		%else %do;	
+			&_condition and &_byvar ne &_missval_lab and &_byvar ne .;
+		%end;
+	%end;
+	%else %do;	
+		%if %length(&_weight) ne 0 %then %do; 
+			where &_byvar ne &_missval_lab and &_byvar ne . and &_weight > 0 
+		%end;
+		%else %do;	
+			where &_byvar ne &_missval_lab and &_byvar ne .;
+		%end;
+	%end;	
+	&_commandstring.;
+run;
 
 ods exclude all;
 
@@ -222,13 +330,14 @@ run;
 					 _outcome		= &_outcome,
 					 _factor		= &_factor,
 					 _byvar			= &_byvar,
-					 _missval		= &_missval,
+					 _missval_lab	= &_missval_lab,
 					 _outvalue		= &_outvalue,
 					 _domain		= &_domain,
 					 _domainvalue	= &_domainvalue,
 					 _strata		= &_strata,
 					 _cluster		= &_cluster,
-	                 _weight		= &_weight);
+	                 _weight		= &_weight,
+					 _missval_opts	= &_missval_opts);
 	%end;
 
 %* for row percentages;
@@ -237,13 +346,14 @@ run;
 					 _outcome		= &_outcome,
 					 _factor		= &_factor,
 					 _byvar			= &_byvar,
-					 _missval		= &_missval,
+					 _missval_lab	= &_missval_lab,
 					 _outvalue		= &_outvalue,
 					 _domain		= &_domain,
 					 _domainvalue	= &_domainvalue,
 					 _strata		= &_strata,
 					 _cluster		= &_cluster,
-	                 _weight		= &_weight);
+	                 _weight		= &_weight,
+					 _missval_opts	= &_missval_opts);
 	%end;
 
 %* for column percentages;
@@ -252,13 +362,15 @@ run;
 				 _outcome		= &_outcome,
 				 _factor		= &_factor,
 				 _byvar			= &_byvar,
-				 _missval		= &_missval,
+				 _missval_lab	= &_missval_lab,
 				 _outvalue		= &_outvalue,
 				 _domain		= &_domain,
 				 _domainvalue	= &_domainvalue,
 				 _strata		= &_strata,
 				 _cluster		= &_cluster,
-                 _weight		= &_weight);
+                 _weight		= &_weight,
+				 _missval_opts	= &_missval_opts);
+
 	%end;
 
     %if &vi = 1 %then %do; 
@@ -289,13 +401,14 @@ run;
 						_outcome	= &_outcome,
 						_outvalue	= &_outvalue,
 						_contvar	= &_contvar,
-						_missval	= &_missval,
+						_missval_lab= &_missval_lab,
 						_byvar		= &_byvar,
 					  	_domain		= &_domain,
 					  	_domainvalue= &_domainvalue,
 						_strata		= &_strata,
 						_cluster	= &_cluster,
-				        _weight		= &_weight);
+				        _weight		= &_weight,
+					 	_missval_opts	= &_missval_opts);
 
 		%end;
 
@@ -304,13 +417,14 @@ run;
 						_outcome	= &_outcome,
 						_outvalue	= &_outvalue,
 						_contvar	= &_contvar,
-						_missval	= &_missval,
+						_missval_lab= &_missval_lab,
 						_byvar		= &_byvar,
 					  	_domain		= &_domain,
 					  	_domainvalue= &_domainvalue,
 						_strata		= &_strata,
 						_cluster	= &_cluster,
-				        _weight		= &_weight);
+				        _weight		= &_weight,
+					 	_missval_opts	= &_missval_opts);
 
 		%end;
 
@@ -327,8 +441,8 @@ run;
 %* get domain size;
 proc sql noprint;
 	select count(*) into: nobs separated by ' ' from _temp_ 
-	where &_domain = &_domainvalue and &_byvar ne &_missval and 
-		%if %upcase(&_cat_type) = PREV %then %do; &_outcome ne &_missval %end;
+	where &_domain = &_domainvalue and &_byvar ne &_missval_lab and 
+		%if %upcase(&_cat_type) = PREV %then %do; &_outcome ne &_missval_lab %end;
 		%else %do; &_outcome=&_outvalue %end;;
 quit;
 
@@ -349,7 +463,7 @@ run;
 proc sort data =xx_dataset; by &_byvar; run;
 
 data _null_; set  xx_dataset; by &_byvar; 
-if first.&_byvar and &_byvar ne &_missval then do;
+if first.&_byvar and &_byvar ne &_missval_lab and not missing(&_byvar) then do;
 	i+1;
 	call symput("colvname"||trim(left(i)), "&_byvar._"||trim(left(&_byvar))); 
 	call symput("collabel"||trim(left(i)), trim(left(vvalue(&_byvar))));
@@ -583,12 +697,13 @@ ods exclude none;
 				_outvalue=,
 				_factor=,
 				_byvar=,
-				_missval=,
+				_missval_lab=,
 				_domain=,
 				_domainvalue=,
 				_strata=,
 				_cluster=,
-                _weight=);
+                _weight=,
+				_missval_opts=);
 
 %* clean temporary datasets;
 data _temp_ Crosstab1 Crosstabtotal1 Crosstabtotal Crosstab totals merged final xtab0 xtab1 _merge _merge_level _merge_total _merge_varname _report_freq; run;
@@ -596,39 +711,81 @@ data _temp_ Crosstab1 Crosstabtotal1 Crosstabtotal Crosstab totals merged final 
 %* finetuning the data;
 data _temp_;
 set &_data;
-	if &_byvar ne &_missval;
+	%if %length(&_missval_opts) ne 0 %then %do; 
+		if &_byvar eq &_missval_lab or &_byvar eq . 
+		then delete;
+	%end;
+	%else %do; 
+		if &_factor eq &_missval_lab or &_factor eq . 
+		or &_byvar eq &_missval_lab or &_byvar eq . 
+		then delete;
+	%end;
 run;
 
 %* create the cross-tabluation table;
 ods output CrossTabs=Crosstab1;
-proc surveyfreq data=_temp_;  
+proc surveyfreq data=_temp_ %if %upcase(&_varmethod)=JK or %upcase(&_varmethod)=JACKKNIFE or %upcase(&_varmethod)=BRR %then %do; 
+								varmethod = &_varmethod.; 
+							%end;
+							%if %length(&_missval_opts) ne 0 %then %do; 
+								&_commandspace. &_missval_opts. &_commandstring.;
+							%end;
+							%else %do;
+								&_commandstring.;
+							%end;
 
 %* apply if survey design if specified; 
- 	%if &_strata ne %then %do;  
+ 	%if %length(&_strata) ne 0 %then %do;  
 		stratum &_strata;
 	%end;
-	%if &_cluster ne %then %do;  
+	%if %length(&_cluster) ne 0 %then %do;  
 		cluster &_cluster;
 	%end;
-	%if &_weight ne %then %do;  
+	%if %length(&_weight) ne 0 %then %do;  
 		weight  &_weight;
+	%end;
+	%if %length(&_rep_weights_values) ne 0 %then %do;
+		repweights &_rep_weights_values 
+		%if %length(&_varmethod_opts) ne 0 %then %do; 
+			/ &_varmethod_opts. &_commandstring.; 
+		%end;
+		%else %do;
+			&_commandstring.;
+		%end;
 	%end;
 		tables  &_domain*&_byvar*&_factor*&_outcome/col cl chisq; 
 run;
 
 %* create the cross-tabluation totals;
 ods output CrossTabs=Crosstabtotal1;
-proc surveyfreq data=_temp_;  
- 
+proc surveyfreq data=_temp_ %if %upcase(&_varmethod)=JK or %upcase(&_varmethod)=JACKKNIFE or %upcase(&_varmethod)=BRR %then %do; 
+								varmethod = &_varmethod.; 
+							%end;
+							%if %length(&_missval_opts) ne 0 %then %do; 
+								&_commandspace. &_missval_opts. &_commandstring.;
+							%end;
+							%else %do;
+								&_commandstring.;
+							%end;
+
 %* apply if survey design if specified; 
- 	%if &_strata ne %then %do;  
+ 	%if %length(&_strata) ne 0 %then %do;  
 		stratum &_strata;
 	%end;
-	%if &_cluster ne %then %do;  
+	%if %length(&_cluster) ne 0 %then %do;  
 		cluster &_cluster;
 	%end;
-	%if &_weight ne %then %do;  
+	%if %length(&_weight) ne 0 %then %do;  
 		weight  &_weight;
+	%end;
+	%if %length(&_rep_weights_values) ne 0 %then %do;
+		repweights &_rep_weights_values 
+		%if %length(&_varmethod_opts) ne 0 %then %do; 
+			/ &_varmethod_opts. &_commandstring.; 
+		%end;
+		%else %do;
+			&_commandstring.;
+		%end;
 	%end;
 		tables  &_domain*&_factor*&_outcome/col cl; 
 run;
@@ -718,7 +875,7 @@ run;
 proc sort data =_temp_; by &_byvar; run;
 
 data _null_; set  _temp_; by &_byvar; 
-if first.&_byvar and &_byvar ne &_missval then do;
+if first.&_byvar and &_byvar ne &_missval_lab and not missing(&_byvar) then do;
 	i+1;
 	call symput("colvname"||trim(left(i)), "&_byvar._"||trim(left(&_byvar))); 
 	call symput("collabel"||trim(left(i)), trim(left(vvalue(&_byvar))));
@@ -810,12 +967,13 @@ run;
 				_outvalue=,
 				_byvar=,
 				_factor=,
-				_missval=,
+				_missval_lab=,
 				_domain=,
 				_domainvalue=,
 				_strata=,
 				_cluster=,
-                _weight=);
+                _weight=,
+				_missval_opts=);
 
 %* clean temporary datasets;
 data _temp_ _report_freq Crosstab1 Crosstabtotal1 Crosstabtotal Crosstab totals merged final xtab0 xtab1 _merge _merge_level _merge_total _merge_varname; run;
@@ -823,39 +981,81 @@ data _temp_ _report_freq Crosstab1 Crosstabtotal1 Crosstabtotal Crosstab totals 
 %* finetuning the data;
 data _temp_;
 set &_data;
-	if &_byvar ne &_missval ;
+	%if %length(&_missval_opts) ne 0 %then %do; 
+		if &_byvar eq &_missval_lab or &_byvar eq . 
+		then delete;
+	%end;
+	%else %do; 
+		if &_factor eq &_missval_lab or &_factor eq . 
+		or &_byvar eq &_missval_lab or &_byvar eq . 
+		then delete;
+	%end;
 run;
 
 %* create the cross-tabluation table;
 ods output CrossTabs=Crosstab1;
-proc surveyfreq data=_temp_;  
+proc surveyfreq data=_temp_ %if %upcase(&_varmethod)=JK or %upcase(&_varmethod)=JACKKNIFE or %upcase(&_varmethod)=BRR %then %do; 
+								varmethod = &_varmethod.; 
+							%end;
+							%if %length(&_missval_opts) ne 0 %then %do; 
+								&_commandspace. &_missval_opts. &_commandstring.;
+							%end;
+							%else %do;
+								&_commandstring.;
+							%end;
 
-%* apply survey design if specified; 
- 	%if &_strata ne %then %do;  
+%* apply if survey design if specified; 
+ 	%if %length(&_strata) ne 0 %then %do;  
 		stratum &_strata;
 	%end;
-	%if &_cluster ne %then %do;  
+	%if %length(&_cluster) ne 0 %then %do;  
 		cluster &_cluster;
 	%end;
-	%if &_weight ne %then %do;  
+	%if %length(&_weight) ne 0 %then %do;  
 		weight  &_weight;
+	%end;
+	%if %length(&_rep_weights_values) ne 0 %then %do;
+		repweights &_rep_weights_values 
+		%if %length(&_varmethod_opts) ne 0 %then %do; 
+			/ &_varmethod_opts. &_commandstring.; 
+		%end;
+		%else %do;
+			&_commandstring.;
+		%end;
 	%end;
 		tables  &_domain*&_factor*&_byvar*&_outcome/col cl chisq; 
 run;
 
 %* create the cross-tabluation totals;
 ods output CrossTabs=Crosstabtotal1;
-proc surveyfreq data=_temp_;    
- 
-%* apply survey design if specified; 
- 	%if &_strata ne %then %do;  
+proc surveyfreq data=_temp_ %if %upcase(&_varmethod)=JK or %upcase(&_varmethod)=JACKKNIFE or %upcase(&_varmethod)=BRR %then %do; 
+								varmethod = &_varmethod.; 
+							%end;
+							%if %length(&_missval_opts) ne 0 %then %do; 
+								&_commandspace. &_missval_opts. &_commandstring.;
+							%end;
+							%else %do;
+								&_commandstring.;
+							%end;
+
+%* apply if survey design if specified; 
+ 	%if %length(&_strata) ne 0 %then %do;  
 		stratum &_strata;
 	%end;
-	%if &_cluster ne %then %do;  
+	%if %length(&_cluster) ne 0 %then %do;  
 		cluster &_cluster;
 	%end;
-	%if &_weight ne %then %do;  
+	%if %length(&_weight) ne 0 %then %do;  
 		weight  &_weight;
+	%end;
+	%if %length(&_rep_weights_values) ne 0 %then %do;
+		repweights &_rep_weights_values 
+		%if %length(&_varmethod_opts) ne 0 %then %do; 
+			/ &_varmethod_opts. &_commandstring.; 
+		%end;
+		%else %do;
+			&_commandstring.;
+		%end;
 	%end;
 		tables  &_domain*&_byvar*&_outcome/col cl chisq; 
 run;
@@ -945,6 +1145,7 @@ set merged;
 	_n   			= put(frequency, 5.0);
 	denominator 	= put(freqtot, 5.0);
     variable		= f_&_factor;
+	if put(ColLowerCL,5.0)=100 & put(ColUpperCL,5.0)=100 then do; charLCL=.; charUCL=.; end;
 	_i 				= '('||trim(left(charLCL))||' - '||trim(left(charUCL))||')';
 	N 				= trim((_n))||'/'||trim(left(denominator));
  	label N 		= 'Unweighted n/N';
@@ -985,7 +1186,7 @@ run;
 proc sort data =_temp_; by &_byvar; run;
 
 data _null_; set  _temp_; by &_byvar; 
-if first.&_byvar and &_byvar ne &_missval then do;
+if first.&_byvar and &_byvar ne &_missval_lab then do;
 	i+1;
 	call symput("colvname"||trim(left(i)), "&_byvar._"||trim(left(&_byvar))); 
 	call symput("collabel"||trim(left(i)), trim(left(vvalue(&_byvar))));
@@ -1077,12 +1278,13 @@ run;
 				_outvalue=,
 				_factor=,
 				_byvar=,
-				_missval=,
+				_missval_lab=,
 				_domain=,
 				_domainvalue=,
 				_strata=,
 				_cluster=,
-                _weight=);
+                _weight=,
+				_missval_opts=);
 
 %* create the cross-tabluation table;
 data _temp_ _report_freq Crosstab1 Crosstabtotal1 Crosstabtotal Crosstab totals merged final xtab0 xtab1 _merge _merge_level _merge_total _merge_varname; run;
@@ -1090,22 +1292,47 @@ data _temp_ _report_freq Crosstab1 Crosstabtotal1 Crosstabtotal Crosstab totals 
 %* finetuning the data;
 data _temp_;
 set &_data;
-	if &_byvar ne &_missval and &_factor ne .;
+	%if %length(&_missval_opts) ne 0 %then %do; 
+		if &_byvar eq &_missval_lab or &_byvar eq . 
+		then delete;
+	%end;
+	%else %do; 
+		if &_factor eq &_missval_lab or &_factor eq . 
+		or &_byvar eq &_missval_lab or &_byvar eq . 
+		then delete;
+	%end;
 run;
 
 %* create the cross-tabluation table;
 ods output CrossTabs=Crosstab1;
-proc surveyfreq data=_temp_;   
+proc surveyfreq data=_temp_ %if %upcase(&_varmethod)=JK or %upcase(&_varmethod)=JACKKNIFE or %upcase(&_varmethod)=BRR %then %do; 
+								varmethod = &_varmethod.; 
+							%end;
+							%if %length(&_missval_opts) ne 0 %then %do; 
+								&_commandspace. &_missval_opts. &_commandstring.;
+							%end;
+							%else %do;
+								&_commandstring.;
+							%end;
 
-%* apply survey design if specified; 
- 	%if &_strata ne %then %do;  
+%* apply if survey design if specified; 
+ 	%if %length(&_strata) ne 0 %then %do;  
 		stratum &_strata;
 	%end;
-	%if &_cluster ne %then %do;  
+	%if %length(&_cluster) ne 0 %then %do;  
 		cluster &_cluster;
 	%end;
-	%if &_weight ne %then %do;  
-		weight &_weight;
+	%if %length(&_weight) ne 0 %then %do;  
+		weight  &_weight;
+	%end;
+	%if %length(&_rep_weights_values) ne 0 %then %do;
+		repweights &_rep_weights_values 
+		%if %length(&_varmethod_opts) ne 0 %then %do; 
+			/ &_varmethod_opts. &_commandstring.; 
+		%end;
+		%else %do;
+			&_commandstring.;
+		%end;
 	%end;
 		tables &_domain*&_factor*&_byvar*&_outcome/row cl chisq;
 run;
@@ -1116,17 +1343,34 @@ set Crosstab1;
 run;
 
 ods output CrossTabs=Crosstabtotal;
-proc surveyfreq data=_temp_;            
+proc surveyfreq data=_temp_ %if %upcase(&_varmethod)=JK or %upcase(&_varmethod)=JACKKNIFE or %upcase(&_varmethod)=BRR %then %do; 
+								varmethod = &_varmethod.; 
+							%end;
+							%if %length(&_missval_opts) ne 0 %then %do; 
+								&_commandspace. &_missval_opts. &_commandstring.;
+							%end;
+							%else %do;
+								&_commandstring.;
+							%end;
 
-%* apply survey design if specified; 
- 	%if &_strata ne %then %do;  
+%* apply if survey design if specified; 
+ 	%if %length(&_strata) ne 0 %then %do;  
 		stratum &_strata;
 	%end;
-	%if &_cluster ne %then %do;  
+	%if %length(&_cluster) ne 0 %then %do;  
 		cluster &_cluster;
 	%end;
-	%if &_weight ne %then %do;  
-		weight &_weight;
+	%if %length(&_weight) ne 0 %then %do;  
+		weight  &_weight;
+	%end;
+	%if %length(&_rep_weights_values) ne 0 %then %do;
+		repweights &_rep_weights_values 
+		%if %length(&_varmethod_opts) ne 0 %then %do; 
+			/ &_varmethod_opts. &_commandstring.; 
+		%end;
+		%else %do;
+			&_commandstring.;
+		%end;
 	%end;
 		tables &_domain*&_byvar*&_outcome/row cl chisq; 
 run;
@@ -1178,6 +1422,7 @@ set merged;
 	_n  	 		= put(frequency, 5.0);
 	denominator 	= put(freqtot, 5.0);
 	variable		= f_&_factor;
+	if put(RowLowerCL,5.0)=100 & put(RowUpperCL,5.0)=100 then do; charLCL=.; charUCL=.; end;
 	_i 				= '('||trim(left(charLCL))||' - '||trim(left(charUCL))||')';
 	N 				= trim((_n))||'/'||trim(left(denominator));
 	label N 		= 'Unweighted n/N';
@@ -1210,7 +1455,7 @@ run;
 proc sort data =_temp_; by &_byvar; run;
 
 data _null_; set  _temp_; by &_byvar; 
-if first.&_byvar and &_byvar ne &_missval then do;
+if first.&_byvar and &_byvar ne &_missval_lab and not missing(&_byvar) then do;
 	i+1;
 	call symput("colvname"||trim(left(i)), "&_byvar._"||trim(left(&_byvar))); 
 	call symput("collabel"||trim(left(i)), trim(left(vvalue(&_byvar))));
@@ -1300,36 +1545,64 @@ run;
 %macro svy_median (	_data=,
 					_outcome=,
 					_contvar=,
-					_missval=,
+					_missval_lab=,
 					_byvar=,
 					_outvalue=,
 					_domain=,
 					_domainvalue=,
 					_strata=,
 					_cluster=,
-	                _weight=);
+	                _weight=,
+					_missval_opts=);
 
 data _temp_ _report_cont _median_total _q1_total _q3_total _median_sub _q1_sub _q3_sub _median_freq _q1_freq _q3_freq _summc _summb _summa _summ3n _summ3s _summ _summ2 _summ1 _summ2n _summ2s _summ1n _summ1s; run;
 
 * finetuning the data;
 data _temp_;
 set &_data;
-	if &_byvar ne &_missval and &_contvar ne &_missval;
+	%if %length(&_missval_opts) ne 0 %then %do; 
+		if &_contvar eq &_missval_lab or &_contvar eq . 
+		then delete;
+	%end;
+	%else %do; 
+		if &_byvar eq &_missval_lab or &_byvar eq . 
+		or &_contvar eq &_missval_lab or &_contvar eq . 
+		then delete;
+	%end;
 run;
 
 %* quantiles for totals;
 ods output 	Summary=_summ1n
 			Quantiles=_summ1s;
-proc surveymeans data=_temp_ median q1 q3;
-%if &_strata ne %then %do;
-	strata &_strata;
-%end;
-%if &_cluster ne %then %do;
-	cluster &_cluster;
-%end;
-%if &_weight ne %then %do;
-	weight &_weight;
-%end;
+proc surveymeans data=_temp_ median q1 q3 %if %upcase(&_varmethod)=JK or %upcase(&_varmethod)=JACKKNIFE or %upcase(&_varmethod)=BRR %then %do; 
+								varmethod = &_varmethod.; 
+							%end;
+							%if %length(&_missval_opts) ne 0 %then %do; 
+								&_commandspace. &_missval_opts. &_commandstring.;
+							%end;
+							%else %do;
+								&_commandstring.;
+							%end;
+
+%* apply if survey design if specified; 
+ 	%if %length(&_strata) ne 0 %then %do;  
+		stratum &_strata;
+	%end;
+	%if %length(&_cluster) ne 0 %then %do;  
+		cluster &_cluster;
+	%end;
+	%if %length(&_weight) ne 0 %then %do;  
+		weight  &_weight;
+	%end;
+	%if %length(&_rep_weights_values) ne 0 %then %do;
+		repweights &_rep_weights_values 
+		%if %length(&_varmethod_opts) ne 0 %then %do; 
+			/ &_varmethod_opts. &_commandstring.; 
+		%end;
+		%else %do;
+			&_commandstring.;
+		%end;
+	%end;
 	var &_contvar;
 	where &_domain=&_domainvalue and &_outcome=&_outvalue;
 run;
@@ -1396,7 +1669,7 @@ ods output Summary=_summ2n;
 proc means data=_temp_ n;
 	var &_contvar;
 	by &_byvar;
-	where &_domain=&_domainvalue and &_outcome=&_outvalue and &_contvar ne &_missval;
+	where &_domain=&_domainvalue and &_outcome=&_outvalue and &_contvar ne &_missval_lab;
 run;
 
 data _summ2n;
@@ -1405,16 +1678,35 @@ set _summ2n;
 run;
 
 ods output Quantiles=_summ2s;
-proc surveymeans data=_temp_ median q1 q3;
-%if &_strata ne %then %do;
-	strata &_strata;
-%end;
-%if &_cluster ne %then %do;
-	cluster &_cluster;
-%end;
-%if &_weight ne %then %do;
-	weight &_weight;
-%end;
+proc surveymeans data=_temp_ median q1 q3 %if %upcase(&_varmethod)=JK or %upcase(&_varmethod)=JACKKNIFE or %upcase(&_varmethod)=BRR %then %do; 
+								varmethod = &_varmethod.; 
+							%end;
+							%if %length(&_missval_opts) ne 0 %then %do; 
+								&_commandspace. &_missval_opts. &_commandstring.;
+							%end;
+							%else %do;
+								&_commandstring.;
+							%end;
+
+%* apply if survey design if specified; 
+ 	%if %length(&_strata) ne 0 %then %do;  
+		stratum &_strata;
+	%end;
+	%if %length(&_cluster) ne 0 %then %do;  
+		cluster &_cluster;
+	%end;
+	%if %length(&_weight) ne 0 %then %do;  
+		weight  &_weight;
+	%end;
+	%if %length(&_rep_weights_values) ne 0 %then %do;
+		repweights &_rep_weights_values 
+		%if %length(&_varmethod_opts) ne 0 %then %do; 
+			/ &_varmethod_opts. &_commandstring.; 
+		%end;
+		%else %do;
+			&_commandstring.;
+		%end;
+	%end;
 	var &_contvar;
 	by &_byvar;
 	where &_domain=&_domainvalue and &_outcome=&_outvalue;
@@ -1481,7 +1773,7 @@ run;
 proc sort data = _temp_; by &_byvar ; run;
 
 data _null_; set  _temp_; by &_byvar; 
- if first.&_byvar and &_byvar ne &_missval then do;
+ if first.&_byvar and &_byvar ne &_missval_lab then do;
  i+1;
   	call symput("colvname"||trim(left(i)), "&_byvar._"||trim(left(&_byvar)));
   	call symput("collabel"||trim(left(i)), trim(left(vvalue(&_byvar))));
@@ -1524,16 +1816,35 @@ run;
 %* column for totals;
 ods output Summary=_summ3n;
 ods output Quantiles=_summ3s;
-proc surveymeans data=_temp_ median q1 q3;
-%if &_strata ne %then %do;
-	strata &_strata;
-%end;
-%if &_cluster ne %then %do;
-	cluster &_cluster;
-%end;
-%if &_weight ne %then %do;
-	weight &_weight;
-%end;
+proc surveymeans data=_temp_ median q1 q3 %if %upcase(&_varmethod)=JK or %upcase(&_varmethod)=JACKKNIFE or %upcase(&_varmethod)=BRR %then %do; 
+								varmethod = &_varmethod.; 
+							%end;
+							%if %length(&_missval_opts) ne 0 %then %do; 
+								&_commandspace. &_missval_opts. &_commandstring.;
+							%end;
+							%else %do;
+								&_commandstring.;
+							%end;
+
+%* apply if survey design if specified; 
+ 	%if %length(&_strata) ne 0 %then %do;  
+		stratum &_strata;
+	%end;
+	%if %length(&_cluster) ne 0 %then %do;  
+		cluster &_cluster;
+	%end;
+	%if %length(&_weight) ne 0 %then %do;  
+		weight  &_weight;
+	%end;
+	%if %length(&_rep_weights_values) ne 0 %then %do;
+		repweights &_rep_weights_values 
+		%if %length(&_varmethod_opts) ne 0 %then %do; 
+			/ &_varmethod_opts. &_commandstring.; 
+		%end;
+		%else %do;
+			&_commandstring.;
+		%end;
+	%end;
 	var &_contvar;
 	where &_domain=&_domainvalue and &_outcome=&_outvalue;
 run;
@@ -1629,39 +1940,64 @@ run;
 %macro svy_mean (	_data=,
 					_outcome=,
 					_contvar=,
-					_missval=,
+					_missval_lab=,
 					_byvar=,
 					_outvalue=,
 					_domain=,
 					_domainvalue=,
 					_strata=,
 					_cluster=,
-	                _weight=);
+	                _weight=,
+					_missval_opts=);
 
 data _temp_ _report_cont _summc _summb _summa _summ3n _summ3s _summ _summ2 _summ1 _summ2n _summ2s _summ1n _summ1s; run;
 
 * data steps ...;
 data _temp_;
 set &_data;
-	if &_byvar ne &_missval and &_contvar ne &_missval;
+	%if %length(&_missval_opts) ne 0 %then %do; 
+		if &_contvar eq &_missval_lab or &_contvar eq . 
+		then delete;
+	%end;
+	%else %do; 
+		if &_byvar eq &_missval_lab or &_byvar eq . 
+		or &_contvar eq &_missval_lab or &_contvar eq . 
+		then delete;
+	%end;
 run;
 
 %* statistics for totals;
 ods output 	Summary=_summ1n
 			Statistics=_summ1s;
-proc surveymeans data=_temp_ mean clm;
-%if &_strata ne %then %do;
-	strata &_strata;
-%end;
-%if &_cluster ne %then %do;
-	cluster &_cluster;
-%end;
-%if &_weight ne %then %do;
-	weight &_weight;
-%end;
-%if &_domain ne %then %do;
-	domain &_domain;
-%end;
+proc surveymeans data=_temp_ median q1 q3 %if %upcase(&_varmethod)=JK or %upcase(&_varmethod)=JACKKNIFE or %upcase(&_varmethod)=BRR %then %do; 
+								varmethod = &_varmethod.; 
+							%end;
+							%if %length(&_missval_opts) ne 0 %then %do; 
+								&_commandspace. &_missval_opts. &_commandstring.;
+							%end;
+							%else %do;
+								&_commandstring.;
+							%end;
+
+%* apply if survey design if specified; 
+ 	%if %length(&_strata) ne 0 %then %do;  
+		stratum &_strata;
+	%end;
+	%if %length(&_cluster) ne 0 %then %do;  
+		cluster &_cluster;
+	%end;
+	%if %length(&_weight) ne 0 %then %do;  
+		weight  &_weight;
+	%end;
+	%if %length(&_rep_weights_values) ne 0 %then %do;
+		repweights &_rep_weights_values 
+		%if %length(&_varmethod_opts) ne 0 %then %do; 
+			/ &_varmethod_opts. &_commandstring.; 
+		%end;
+		%else %do;
+			&_commandstring.;
+		%end;
+	%end;
 	var &_contvar;
 	where &_domain=&_domainvalue and &_outcome=&_outvalue;
 run;
@@ -1698,7 +2034,7 @@ run;
 proc sort data = _temp_; by &_byvar; run;
 
 ods output Summary=_summ2n;
-proc means data=_temp_ n;
+proc means data=_temp_ n ;
 	var &_contvar;
 	by &_byvar;
 	where &_domain=&_domainvalue and &_outcome=&_outvalue;
@@ -1710,19 +2046,35 @@ set _summ2n;
 run;
 
 ods output Statistics=_summ2s;
-proc surveymeans data=_temp_ mean clm;
-%if &_strata ne %then %do;
-	strata &_strata;
-%end;
-%if &_cluster ne %then %do;
-	cluster &_cluster;
-%end;
-%if &_weight ne %then %do;
-	weight &_weight;
-%end;
-%if &_domain ne %then %do;
-	domain &_domain;
-%end;
+proc surveymeans data=_temp_ median q1 q3 %if %upcase(&_varmethod)=JK or %upcase(&_varmethod)=JACKKNIFE or %upcase(&_varmethod)=BRR %then %do; 
+								varmethod = &_varmethod.; 
+							%end;
+							%if %length(&_missval_opts) ne 0 %then %do; 
+								&_commandspace. &_missval_opts. &_commandstring.;
+							%end;
+							%else %do;
+								&_commandstring.;
+							%end;
+
+%* apply if survey design if specified; 
+ 	%if %length(&_strata) ne 0 %then %do;  
+		stratum &_strata;
+	%end;
+	%if %length(&_cluster) ne 0 %then %do;  
+		cluster &_cluster;
+	%end;
+	%if %length(&_weight) ne 0 %then %do;  
+		weight  &_weight;
+	%end;
+	%if %length(&_rep_weights_values) ne 0 %then %do;
+		repweights &_rep_weights_values 
+		%if %length(&_varmethod_opts) ne 0 %then %do; 
+			/ &_varmethod_opts. &_commandstring.; 
+		%end;
+		%else %do;
+			&_commandstring.;
+		%end;
+	%end;
 	var &_contvar;
 	by &_byvar;
 	where &_domain=&_domainvalue and &_outcome=&_outvalue;
@@ -1759,7 +2111,7 @@ run;
 proc sort data = _temp_; by &_byvar ; run;
 
 data _null_; set  _temp_; by &_byvar; 
- if first.&_byvar and &_byvar ne &_missval then do;
+ if first.&_byvar and &_byvar ne &_missval_lab and not missing(&_byvar) then do;
  i+1;
   	call symput("colvname"||trim(left(i)), "&_byvar._"||trim(left(&_byvar)));
   	call symput("collabel"||trim(left(i)), trim(left(vvalue(&_byvar))));
@@ -1801,19 +2153,35 @@ run;
 %* column for totals;
 ods output Summary=_summ3n;
 ods output Statistics=_summ3s;
-proc surveymeans data=_temp_ mean clm;
-%if &_strata ne %then %do;
-	strata &_strata;
-%end;
-%if &_cluster ne %then %do;
-	cluster &_cluster;
-%end;
-%if &_weight ne %then %do;
-	weight &_weight;
-%end;
-%if &_domain ne %then %do;
-	domain &_domain;
-%end;
+proc surveymeans data=_temp_ median q1 q3 %if %upcase(&_varmethod)=JK or %upcase(&_varmethod)=JACKKNIFE or %upcase(&_varmethod)=BRR %then %do; 
+								varmethod = &_varmethod.; 
+							%end;
+							%if %length(&_missval_opts) ne 0 %then %do; 
+								&_commandspace. &_missval_opts. &_commandstring.;
+							%end;
+							%else %do;
+								&_commandstring.;
+							%end;
+
+%* apply if survey design if specified; 
+ 	%if %length(&_strata) ne 0 %then %do;  
+		stratum &_strata;
+	%end;
+	%if %length(&_cluster) ne 0 %then %do;  
+		cluster &_cluster;
+	%end;
+	%if %length(&_weight) ne 0 %then %do;  
+		weight  &_weight;
+	%end;
+	%if %length(&_rep_weights_values) ne 0 %then %do;
+		repweights &_rep_weights_values 
+		%if %length(&_varmethod_opts) ne 0 %then %do; 
+			/ &_varmethod_opts. &_commandstring.; 
+		%end;
+		%else %do;
+			&_commandstring.;
+		%end;
+	%end;
 	var &_contvar;
 run;
 
