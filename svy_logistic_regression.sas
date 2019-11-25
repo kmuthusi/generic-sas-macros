@@ -113,6 +113,10 @@
 **																				**
 ** Changed number of decimal points for OR (95% CI) from 1 to 2					**
 **																				**
+**       Modified by  : Muthusi, Jacques                   Date: 25NOV2019 	    **
+**																				**
+** Added parameters pvalue_decimal and or_decimal to specify number of decimal 	**
+** points for P-value and OR (95% CI) respectively								**
 **																				**
 **********************************************************************************
 *********************************************************************************/
@@ -127,24 +131,36 @@ options mlogic mprint symbolgen;
 	%end;
 %mend runquit;
 
-%* start of simple logistic regression macro;
+%let commandstring=%nrstr(;);
+%let _commandspace=%nrstr( );
 
-%macro svy_unilogit(dataset 	= , 
-					outcome 	= , 
-					outevent	= ,
-					catvars 	= , 
-					contvars	= ,
-					strata		= ,
-					cluster		= ,
-					weight		= , 
-					class 		= ,
-					domain		= , 
-					domvalue	= ,
-					condition 	= ,
-					print		= YES); 
+data _null_;
+%put &commandstring ;
+run;
+
+%* start of simple logistic regression macro;
+%macro svy_unilogit(dataset 			= , 
+					outcome 			= , 
+					outevent			= ,
+					catvars 			= , 
+					contvars			= ,
+					strata				= ,
+					cluster				= ,
+					weight				= , 
+					class 				= ,
+					domain				= , 
+					domvalue			= ,
+					varmethod			= ,
+				 	rep_weights_values	= ,
+				 	varmethod_opts		= ,
+				 	missval_opts		= ,
+					missval_lab			= .,
+					condition 			= ,
+					pvalue_decimal		= ,
+					or_decimal			= ,
+					print				= YES); 
 
 %* validation for input parameters;
-
 %if %length(&dataset) eq 0 %then %do;
 	%put ERROR: Please provide name of dataset, dataset=;
 	%abort;
@@ -170,13 +186,24 @@ options mlogic mprint symbolgen;
 %abort;
 %end;
 
+%if %length(&missval_lab) eq 0 %then %do;
+	%put ERROR: Please provide missing value label, missval_lab=;
+%abort;
+%end;
+
+%if %length(&pvalue_decimal) eq 0 %then %do;
+	%let pvalue_decimal=2;
+%end;
+%if %length(&or_decimal) eq 0 %then %do;
+	%let or_decimal=1;
+%end;
+
 %* clear all temporary data files before starting;
 data _parms_c _orstat _gstats _freq logistic_table logistic_table_c logistic_table_n _var_ xx_dataset; run;
 
 ods exclude all;
 
 %* prepare analysis dataset;
-
 data xx_dataset;
  	set &dataset;
 		%if %length(&domain) eq 0 %then %do; 
@@ -185,8 +212,35 @@ data xx_dataset;
 			%let domvalue=1;
 		%end;
 		&condition;
-		if &outcome ne . ;
- run;
+		if &outcome ne . or &outcome ne &missval_lab.;
+
+ %* show or suppress missing values;
+	%if &missval_opts. eq missing %then %do;
+		array c{*} _numeric_;
+		array a{*} _numeric_;
+		do i=1 to dim(a);
+		 	c{i} = a{vvalue(i)};
+				if a{i} = &missval_lab. then a{i} = 999; 
+				do i=1 to dim(c);
+					if c{i}="999" then c{i}="Missing"; 
+				end;
+			drop i;
+		end;
+	%end;
+
+	%else %do;
+		array b{*} _numeric_;
+			do i=1 to dim(b);
+				if b{i}=&missval_lab. then b{i} = .;
+			drop i;
+			end;
+	%end;
+	&condition %if %length(&weight) ne 0 %then %do; 
+					and &weight > 0 
+				%end;
+				and &outcome ne &missval_lab and &outcome ne .;
+	;
+run;
 
 %* get domain size;
 proc sql noprint;
@@ -238,16 +292,23 @@ run;
 
 
 %* call macro for simple logistic regression for each categorical predictors;
-    		%svy_logitc(dataset = xx_dataset, 
-	               		model 	= &xmodel, 
-	               		class  	= &xclass,
-						outcome = &outcome,
-						outevent= &outevent,
-						weight	= &weight,
-						strata	= &strata,
-						cluster	= &cluster,
-						domain 	= &domain,
-						domvalue= &domvalue);
+    		%svy_logitc(dataset 			= xx_dataset, 
+	               		model 				= &xmodel, 
+	               		class  				= &xclass,
+						outcome 			= &outcome,
+						outevent			= &outevent,
+						weight				= &weight,
+						strata				= &strata,
+						cluster				= &cluster,
+						domain 				= &domain,
+						domvalue			= &domvalue,
+						varmethod			= &varmethod,
+					 	rep_weights_values	= &rep_weights_values,
+					 	varmethod_opts		= &varmethod_opts,
+					 	missval_opts		= &missval_opts,
+						pvalue_decimal		= &pvalue_decimal.,
+						or_decimal			= &or_decimal.,
+						missval_lab			= &missval_lab);
 
 %* build simple logistic regression table categorical predictor variable;
  			data logistic_table_c;
@@ -282,15 +343,22 @@ run;
      %let xmodel = &outcome(event="&outevent") = &contvar;
 
 %* call macro for simple logistic regression for each continuous predictor variable;
-    		%svy_logitn(dataset = xx_dataset, 
-	               		model 	= &xmodel, 
-						outcome = &outcome,
-						outevent= &outevent,
-						weight	= &weight,
-						strata	= &strata,
-						cluster	= &cluster,
-						domain	= &domain,
-						domvalue= &domvalue);
+    		%svy_logitn(dataset 			= xx_dataset, 
+	               		model 				= &xmodel, 
+						outcome 			= &outcome,
+						outevent			= &outevent,
+						weight				= &weight,
+						strata				= &strata,
+						cluster				= &cluster,
+						domain				= &domain,
+						domvalue			= &domvalue,
+						varmethod			= &varmethod,
+					 	rep_weights_values	= &rep_weights_values,
+					 	varmethod_opts		= &varmethod_opts,
+						pvalue_decimal		= &pvalue_decimal.,
+						or_decimal			= &or_decimal.,
+					 	missval_opts		= &missval_opts,
+						missval_lab			= &missval_lab);
 
 %*  build simple logistic regression table for continuous predictor variable;
  			data logistic_table_n;
@@ -324,23 +392,33 @@ ods exclude none;
 
 %* start of macro for simple logistic regression on categorical variables;
 
-%macro svy_logitc(	dataset	=, 
-					class	=, 
-					model	=, 
-					outcome =,
-					outevent=,
-					strata	=, 
-					cluster	=, 
-					domain 	=,
-					domvalue=,
-					weight	=) ;
+%macro svy_logitc(	dataset				= , 
+					class				= , 
+					model				= , 
+					outcome 			= ,
+					outevent			= ,
+					strata				= , 
+					cluster				= , 
+					domain 				= ,
+					domvalue			= ,
+					weight				= ,
+					varmethod			= ,
+					rep_weights_values	= ,
+					varmethod_opts		= ,
+					pvalue_decimal		= ,
+					or_decimal			= ,
+					missval_opts		= ,
+					missval_lab			= );
 
 %runquit;
 
+%* finetuning the data;
 data _ctemp;
 set &dataset;
-	&condition;
-	 if &outcome ne .;
+	%if %length(&missval_opts) ne 0 %then %do; 
+		if &outcome eq &missval_lab or &outcome eq . 
+		then delete;
+	%end;
 run;
 
 %* save paramater estimates in ods tables;
@@ -349,7 +427,15 @@ ods output 	Type3=_gstats
 			OddsRatios=_orstat;
 
 %* fit logistic regression model;
-proc surveylogistic data =_ctemp;  
+proc surveylogistic data =_ctemp %if %upcase(&varmethod)=JK or %upcase(&varmethod)=JACKKNIFE or %upcase(&varmethod)=BRR %then %do; 
+								varmethod = &varmethod.; 
+							%end;
+							%if %length(&missval_opts) ne 0 %then %do; 
+								&_commandspace. &missval_opts. &commandstring.;
+							%end;
+							%else %do;
+								&commandstring.;
+							%end;  
  	%if &strata ne %then %do;  
 		stratum &strata;
 	%end;
@@ -362,18 +448,26 @@ proc surveylogistic data =_ctemp;
 	%if &domain ne %then %do;  
 		domain &domain;
 	%end;
+	%if %length(&rep_weights_values) ne 0 %then %do;
+		repweights &rep_weights_values 
+		%if %length(&varmethod_opts) ne 0 %then %do; 
+			/ &varmethod_opts. &commandstring.; 
+		%end;
+		%else %do;
+			&commandstring.;
+		%end;
+	%end;
 	class &class /param=ref;
 	model &model /clparm; 
-
 run;
 
 %* obtain p-value for each level of categorical variable and begin building output table;
 data _parms_c; 
-length Parameter $25 ClassVal0 $50 p_value $8;
+length Parameter $25 ClassVal0 $50 p_value $15;
 set _parms_c;
 	Parameter = variable;
 	if ProbChiSq < 0.001 then p_value = "<.001"; 
-	else p_value = put(ProbChiSq,8.3);
+	else p_value = put(ProbChiSq,comma10.&pvalue_decimal.);
 	if parameter="Intercept" then delete;
 keep parameter ClassVal0  p_value;
 if &domain=&domvalue then output;
@@ -389,7 +483,7 @@ data _orstat;
 length Parameter $25 ClassVal0 $50;
 set _orstat;
 	Parameter=scan(effect,1);
-	OR_CI=trim(left(put(OddsRatioEst,4.2)))||" ("||trim(left(put(LowerCL,4.2)))||"-"||trim(left(put(UpperCL,4.2)))||")";
+	OR_CI=trim(left(put(OddsRatioEst,comma10.&or_decimal.)))||" ("||trim(left(put(LowerCL,comma10.&or_decimal.)))||"-"||trim(left(put(UpperCL,comma10.&or_decimal.)))||")";
 keep parameter ClassVal0 OR_CI;
 if &domain=&domvalue then output;
 run;
@@ -410,7 +504,15 @@ run;
 
 %* get labels of categorical predictor variables and add to output table;
 ods output CrossTabs = _freq;
-proc surveyfreq data = _ctemp;
+proc surveyfreq data = _ctemp %if %upcase(&varmethod)=JK or %upcase(&varmethod)=JACKKNIFE or %upcase(&varmethod)=BRR %then %do; 
+								varmethod = &varmethod.; 
+							%end;
+							%if %length(&missval_opts) ne 0 %then %do; 
+								&_commandspace. &missval_opts. &commandstring.;
+							%end;
+							%else %do;
+								&commandstring.;
+							%end;
  	%if &strata ne %then %do;  
 		stratum &strata;
 	%end;
@@ -419,6 +521,15 @@ proc surveyfreq data = _ctemp;
 	%end;
 	%if &weight ne %then %do;  
 		weight &weight;
+	%end;
+	%if %length(&rep_weights_values) ne 0 %then %do;
+		repweights &rep_weights_values 
+		%if %length(&varmethod_opts) ne 0 %then %do; 
+			/ &varmethod_opts. &commandstring.; 
+		%end;
+		%else %do;
+			&commandstring.;
+		%end;
 	%end;
 	table &domain*&catvar*&outcome/cl col row;
 run;
@@ -467,7 +578,7 @@ proc sort data = _parms_c; by classval0;
 data _parms_c; 
 merge _parms_c _allfreq; 
 	by classval0;
-	_nfreq_percent=trim(left(_nfreq))||" ("||trim(left(put(_npercent,4.2)))||")";
+	_nfreq_percent=trim(left(_nfreq))||" ("||trim(left(put(_npercent,comma10.&or_decimal.)))||")";
 	if parameter=" " then parameter="&catvar";
 	if OR_CI=" " and ClassVal0 ne " " then OR_CI="ref";
 	chartab_order=_n_;
@@ -476,11 +587,11 @@ run;
 
 %* obtain type3 p-value for testing importance of categorical predictor variable;
 data _gstats;
-length Parameter $25 g_p_value $8;
+length Parameter $25 g_p_value $15;
 set _gstats;
 	Parameter=Effect;
 	if ProbChiSq < 0.001 then g_p_value = "<.001"; 
-	else g_p_value = put(ProbChiSq,8.3);
+	else g_p_value = put(ProbChiSq,comma10.&pvalue_decimal.);
 	if &domain=&domvalue then output;
 	keep Parameter g_p_value;
 run;
@@ -579,22 +690,36 @@ run;
 
 %* start of macro for simple logistic regression on contiunous variables;
 
-%macro svy_logitn(	dataset =, 
-					model	=, 
-					outcome =,
-					outevent=,
-					strata	=,
-					cluster	=,
-					weight	=,
-					domain	=,
-					domvalue=);
-
+%macro svy_logitn(	dataset 			= , 
+					model				= , 
+					outcome 			= ,
+					outevent			= ,
+					strata				= ,
+					cluster				= ,
+					weight				= ,
+					domain				= ,
+					domvalue			= ,
+					varmethod			= ,
+					rep_weights_values	= ,
+					varmethod_opts		= ,
+					missval_opts		= ,
+					pvalue_decimal		= ,
+					or_decimal			= ,
+					missval_lab			= );
 %runquit;
 
+%* finetuning the dataset;
 data _ntemp;
-	set &dataset;
-	&condition;
-	if &outcome ne . and &contvar ne .;
+set &dataset;
+	%if %length(&missval_opts) ne 0 %then %do; 
+		if &outcome eq &missval_lab or &outcome eq . 
+		then delete;
+	%end;
+	%else %do; 
+		if &contvar eq &missval_lab or &contvar eq . 
+		or &outcome eq &missval_lab or &outcome eq . 
+		then delete;
+	%end;
 run;
 
 %* save paramater estimates and odds ratios ods tables;
@@ -602,7 +727,15 @@ ods output 	ParameterEstimates=_parms_n
 			OddsRatios=_orstat;
 
 %* fit the logistic regression model;
-proc surveylogistic data =_ntemp;
+proc surveylogistic data =_ntemp %if %upcase(&varmethod)=JK or %upcase(&varmethod)=JACKKNIFE or %upcase(&varmethod)=BRR %then %do; 
+								varmethod = &varmethod.; 
+							%end;
+							%if %length(&missval_opts) ne 0 %then %do; 
+								&_commandspace. &missval_opts. &commandstring.;
+							%end;
+							%else %do;
+								&commandstring.;
+							%end;
  	%if &strata ne %then %do;  
 		stratum &strata;
 	%end;
@@ -615,17 +748,26 @@ proc surveylogistic data =_ntemp;
 	%if &domain ne %then %do;  
 		domain &domain;
 	%end;
+	%if %length(&rep_weights_values) ne 0 %then %do;
+		repweights &rep_weights_values 
+		%if %length(&varmethod_opts) ne 0 %then %do; 
+			/ &varmethod_opts. &commandstring.; 
+		%end;
+		%else %do;
+			&commandstring.;
+		%end;
+	%end;
 	model &model /clparm; 
 run;
 
 %* obtain category p-value;
 data _parms_n; 
-length Parameter $25 ClassVal0 $50 p_value $8;
+length Parameter $25 ClassVal0 $50 p_value $15;
 set _parms_n;
 	Parameter = variable;
 	ClassVal0= "";
 	if ProbChiSq < 0.001 then p_value = "<.001"; 
-	else p_value = put(ProbChiSq,8.3);
+	else p_value = put(ProbChiSq,comma10.&pvalue_decimal.);
 	g_p_value=p_value;
 	if parameter="Intercept" then delete;
 	if &domain=&domvalue then output;
@@ -638,7 +780,7 @@ length Parameter $25 ClassVal0 $50;
 set _orstat;
 	Parameter=effect;
 	ClassVal0= "";
-	OR_CI=trim(left(put(OddsRatioEst,4.2)))||" ("||trim(left(put(LowerCL,4.2)))||"-"||trim(left(put(UpperCL,4.2)))||")";
+	OR_CI=trim(left(put(OddsRatioEst,comma10.&or_decimal.)))||" ("||trim(left(put(LowerCL,comma10.&or_decimal.)))||"-"||trim(left(put(UpperCL,comma10.&or_decimal.)))||")";
 	if &domain=&domvalue then output;
 keep parameter ClassVal0 OR_CI;
 run;
@@ -665,7 +807,15 @@ keep parameter class_order varname ClassVal0 OR_CI p_value g_p_value;
 run;
 
 ods output statistics=_tfreqn;
-proc surveymeans data=_ntemp;
+proc surveymeans data=_ntemp %if %upcase(&varmethod)=JK or %upcase(&varmethod)=JACKKNIFE or %upcase(&varmethod)=BRR %then %do; 
+								varmethod = &varmethod.; 
+							%end;
+							%if %length(&missval_opts) ne 0 %then %do; 
+								&_commandspace. &missval_opts. &commandstring.;
+							%end;
+							%else %do;
+								&commandstring.;
+							%end;
  	%if &strata ne %then %do;  
 		stratum &strata;
 	%end;
@@ -678,6 +828,15 @@ proc surveymeans data=_ntemp;
 	%if &domain ne %then %do;  
 		domain &outcome;
 	%end;
+	%if %length(&rep_weights_values) ne 0 %then %do;
+		repweights &rep_weights_values 
+		%if %length(&varmethod_opts) ne 0 %then %do; 
+			/ &varmethod_opts. &commandstring.; 
+		%end;
+		%else %do;
+			&commandstring.;
+		%end;
+	%end;
 	var &contvar;
 	where &domain=&domvalue;
 run;
@@ -689,7 +848,15 @@ keep VarName VarLabel _tfreq;
 run;
 
 ods output CrossTabs = _nfreqn;
-proc surveyfreq data = _ntemp;
+proc surveyfreq data = _ntemp %if %upcase(&varmethod)=JK or %upcase(&varmethod)=JACKKNIFE or %upcase(&varmethod)=BRR %then %do; 
+								varmethod = &varmethod.; 
+							%end;
+							%if %length(&missval_opts) ne 0 %then %do; 
+								&_commandspace. &missval_opts. &commandstring.;
+							%end;
+							%else %do;
+								&commandstring.;
+							%end;
  	%if &strata ne %then %do;  
 		stratum &strata;
 	%end;
@@ -698,6 +865,15 @@ proc surveyfreq data = _ntemp;
 	%end;
 	%if &weight ne %then %do;  
 		weight &weight;
+	%end;
+	%if %length(&rep_weights_values) ne 0 %then %do;
+		repweights &rep_weights_values 
+		%if %length(&varmethod_opts) ne 0 %then %do; 
+			/ &varmethod_opts. &commandstring.; 
+		%end;
+		%else %do;
+			&commandstring.;
+		%end;
 	%end;
 	table &domain*&outcome/cl col row;
 run;
@@ -715,7 +891,7 @@ set _nfreqn;
 	Parameter=upcase("&contvar");
 	_nfreq=Frequency;
 	_npercent=RowPercent;
-	_nfreq_percent=trim(left(_nfreq))||" ("||trim(left(put(_npercent,4.2)))||")";
+	_nfreq_percent=trim(left(_nfreq))||" ("||trim(left(put(_npercent,comma10.&or_decimal.)))||")";
 	keep Parameter VarName _nfreq_percent;
 run;
 
@@ -762,22 +938,36 @@ run;
 
 %* Multiple logistic regression;
 
-%macro svy_multilogit(dataset 	= ,
-					  outcome 	= ,
-					  outevent	= ,
-					  catvars	= ,
-					  contvars	= ,
-					  class 	= ,
-					  strata	= ,
-					  cluster	= ,
-					  weight	= ,
-					  domain	= ,
-					  domvalue	= ,
-					  condition = ,
-					  print		= ); 
+%macro svy_multilogit(dataset 			= ,
+					  outcome 			= ,
+					  outevent			= ,
+					  catvars			= ,
+					  contvars			= ,
+					  class 			= ,
+					  strata			= ,
+					  cluster			= ,
+					  weight			= ,
+					  domain			= ,
+					  domvalue			= ,
+					  varmethod			= ,
+				 	  rep_weights_values= ,
+				 	  varmethod_opts	= ,
+				 	  missval_opts		= ,
+					  missval_lab		=.,
+					  condition 		= ,
+					  pvalue_decimal	= ,
+					  or_decimal		= ,
+					  print				= ); 
 %runquit;
 
 ods exclude all;
+
+%if %length(&pvalue_decimal) eq 0 %then %do;
+	%let pvalue_decimal=2;
+%end;
+%if %length(&or_decimal) eq 0 %then %do;
+	%let or_decimal=1;
+%end;
 
 %* set model statement using input parameters;
 %let model = &outcome(event="&outevent")= &catvars &contvars;
@@ -788,7 +978,15 @@ ods output 	Type3=_gstats
 			OddsRatios=_orstat;
 
 %* fit logistic regression model and apply survey design if survey data;
-proc surveylogistic data =xx_dataset; 
+proc surveylogistic data =xx_dataset %if %upcase(&varmethod)=JK or %upcase(&varmethod)=JACKKNIFE or %upcase(&varmethod)=BRR %then %do; 
+								varmethod = &varmethod.; 
+							%end;
+							%if %length(&missval_opts) ne 0 %then %do; 
+								&_commandspace. &missval_opts. &commandstring.;
+							%end;
+							%else %do;
+								&commandstring.;
+							%end; 
  	%if &strata ne %then %do;  
 		stratum &strata;
 	%end;
@@ -801,17 +999,26 @@ proc surveylogistic data =xx_dataset;
 	%if &domain ne %then %do;  
 		domain &domain;
 	%end;
+	%if %length(&rep_weights_values) ne 0 %then %do;
+		repweights &rep_weights_values 
+		%if %length(&varmethod_opts) ne 0 %then %do; 
+			/ &varmethod_opts. &commandstring.; 
+		%end;
+		%else %do;
+			&commandstring.;
+		%end;
+	%end;
 	class &class /param=ref;
 	model &model / clparm ; 
 run;
 
 %* obtain category p-value;
 data _parms; 
-length Parameter $25 ClassVal0 $50 M_p_value $8;
+length Parameter $25 ClassVal0 $50 M_p_value $15;
 set _parms;
 	Parameter = variable;
 	if ProbChiSq < 0.001 then M_p_value = "<.001"; 
-	else M_p_value = put(ProbChiSq,8.3);
+	else M_p_value = put(ProbChiSq,comma10.&pvalue_decimal.);
 	if parameter="Intercept" then delete;
 	if &domain=&domvalue then output;
 keep  parameter ClassVal0  M_p_value ;
@@ -827,7 +1034,7 @@ data _orstat;
 length Parameter $25 ClassVal0  $50;
 set _orstat;
 	Parameter=scan(effect,1);
-	M_OR_CI=trim(left(put(OddsRatioEst,4.2)))||" ("||trim(left(put(LowerCL,4.2)))||"-"||trim(left(put(UpperCL,4.2)))||")";
+	M_OR_CI=trim(left(put(OddsRatioEst,comma10.&or_decimal.)))||" ("||trim(left(put(LowerCL,comma10.&or_decimal.)))||"-"||trim(left(put(UpperCL,comma10.&or_decimal.)))||")";
 	if &domain=&domvalue then output;
 keep parameter ClassVal0 M_OR_CI;
 run;
@@ -852,11 +1059,11 @@ run;
 
 %* obtain type3 p-value for testing importance of variable;
 data _gstats;
-length Parameter $25 M_g_p_value $8;
+length Parameter $25 M_g_p_value $15;
 set _gstats;
 	Parameter=Effect;
 	if ProbChiSq < 0.001 then M_g_p_value = "<.001"; 
-	else M_g_p_value = put(ProbChiSq,8.3);
+	else M_g_p_value = put(ProbChiSq,comma10.&pvalue_decimal.);
 	if &domain=&domvalue then output;
 	keep Effect Parameter M_g_p_value;
 run;
@@ -925,8 +1132,8 @@ ods exclude none;
 %abort;
 %end;
 
-%if %length(&title) eq 0 %then %do;
-	%put ERROR: Please provide title of output table, title=;
+%if %length(&tabletitle) eq 0 %then %do;
+	%put ERROR: Please provide title of output table, tabletitle=;
 %abort;
 %end;
 
@@ -994,4 +1201,3 @@ ods tagsets.excelxp close;
 ods rtf close;
 
 %mend svy_printlogit;
-
