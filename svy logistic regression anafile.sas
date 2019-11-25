@@ -1,11 +1,11 @@
-dm 'odsresults; clear';
+dm 'odsresults; clear; log; clear; out; clear';
 
 * to remove all datasets from within the WORK folder;
 proc datasets lib=work nolist kill; quit; run;
 
 %let dir=C:\NHANES III\SAS;
 
-%let _missval=-100;
+* %let _missval=-100;
 
 * print log to file;
 proc printto log="&dir.\output\logs\svy_logistic_regression log file.txt" new; run;
@@ -37,12 +37,14 @@ if dmdyrsus in (77,99) then dmdyrsus=.;
 if dmdeduc2 in (7,9) then dmdeduc2=.;
 if dmdmartl in (77,99) then dmdmartl=.;
 
+/*
 * replace missing values code with .;
 	array a(*) _numeric_;
 	do i=1 to dim(a);
 	if a(i) = &_missval then a(i) = .;
 	end;
 	drop i;
+*/
 run;
 
 proc corr data=clean_nhanes spearman;
@@ -65,19 +67,26 @@ option mlogic mprint symbolgen;
 %let contvarsb= ridageyr;
 
 * fit simple logistic regression model;
-%svy_unilogit ( dataset 	= &data., 
-				outcome 	= &outcome.,
-				outevent	= &outevent.,
-				catvars	 	= &catvarsb., 
-				contvars	= &contvarsb.,
-				class 		= &classvarb., 
-				weight		= wtmec2yr,
-				cluster		= sdmvpsu,
-				strata		= sdmvstra,
-				domain		= dmqmiliz,
-				domvalue	= 1,
-				condition 	= if ridageyr>=20,
-				print		= YES); 
+%svy_unilogit ( dataset 		= &data., 
+		outcome 		= &outcome.,
+		outevent		= &outevent.,
+		catvars	 		= &catvarsb., 
+		contvars		= &contvarsb.,
+		class 			= &classvarb., 
+		weight			= wtmec2yr,
+		cluster			= sdmvpsu,
+		strata			= sdmvstra,
+		domain			= dmqmiliz,
+		domvalue		= 1,
+		varmethod		= ,
+		rep_weights_values	= ,
+		varmethod_opts		= ,
+		missval_opts		= ,
+		missval_lab		= -100,
+		condition 		= if ridageyr>=20,
+		pvalue_decimal		= 4,
+		or_decimal		= 3,
+		print			= YES); 
 
 * define parameters for selected predictor variables;
 %let classvarm= riagendr(ref="Male") ridageyrcat2 (ref=">= 60") ridreth1 (ref="Non-Hispanic White") 
@@ -86,26 +95,33 @@ option mlogic mprint symbolgen;
 %let contvarsm=;
 
 * fit multiple logistic regression model;
-%svy_multilogit (dataset 	= &data., 
-				outcome 	= &outcome.,
-				outevent	= &outevent.,
-				catvars	 	= &catvarsm., 
-				contvars	= &contvarsm.,
-				class 		= &classvarm., 
-				weight		= wtmec2yr,
-				cluster		= sdmvpsu,
-				strata		= sdmvstra,
-				domain		= dmqmiliz,
-				domvalue	= 1,
-				condition 	= if ridageyr>=20,
-				print		= YES); 
+%svy_multilogit (dataset 		= &data., 
+		outcome 		= &outcome.,
+		outevent		= &outevent.,
+		catvars	 		= &catvarsm., 
+		contvars		= &contvarsm.,
+		class 			= &classvarm., 
+		weight			= wtmec2yr,
+		cluster			= sdmvpsu,
+		strata			= sdmvstra,
+		domain			= dmqmiliz,
+		domvalue		= 1,
+		varmethod		= ,
+		rep_weights_values	= ,
+		varmethod_opts		= ,
+		missval_opts		= ,
+		missval_lab		= -100,
+		condition 		= if ridageyr>=20,
+		pvalue_decimal		= 4,
+		or_decimal		= 3,
+		print			= YES); 
 
 * output final table;
 %svy_printlogit(tablename	= logit_table,
-				outcome		= &outcome.,
-				outevent	= &outevent.,
-				outdir		= &dir.\output\tables, 
-				tabletitle	= Table 2: Factors associated with Hepatitis A prevalence among participants who served in the US Armed Forces - NHANES 2013-2014);
+		outcome		= &outcome.,
+		outevent	= &outevent.,
+		outdir		= &dir.\output\tables, 
+		tabletitle	= Table 2: Factors associated with Hepatitis A prevalence among participants who served in the US Armed Forces - NHANES 2013-2014);
 
 * program end time;
 %put END TIME: %sysfunc(datetime(),datetime14.);
