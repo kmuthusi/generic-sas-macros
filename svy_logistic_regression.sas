@@ -422,7 +422,7 @@ set &dataset;
 run;
 
 %* save paramater estimates in ods tables;
-ods output 	Type3=_gstats 
+ods output 	ModelANOVA=_gstats 
 			ParameterEstimates=_parms_c 
 			OddsRatios=_orstat;
 
@@ -542,9 +542,9 @@ run;
 data _freq;
 length ClassVal0 $50;
 set _freq;
-	char_order=_n_;
+	/*char_order=_n_;*/
 	ClassVal0 = trim(left(f_&catvar));
-	keep classval0 f_&outcome Frequency RowPercent Percent char_order;
+	keep classval0 f_&outcome Frequency RowPercent Percent /*char_order;*/
 run;
 
 data _nfreq;
@@ -585,7 +585,7 @@ merge _parms_c _allfreq;
 	index=&vi;
 run;
 
-%* obtain type3 p-value for testing importance of categorical predictor variable;
+%* obtain ModelANOVA p-value for testing importance of categorical predictor variable;
 data _gstats;
 length Parameter $25 g_p_value $15;
 set _gstats;
@@ -596,7 +596,7 @@ set _gstats;
 	keep Parameter g_p_value;
 run;
 
-%* add type3 p-value to output table;
+%* add ModelANOVA p-value to output table;
 proc sort data=_parms_c; by Parameter; run; 
 proc sort data=_gstats; by Parameter; run;
 
@@ -614,7 +614,7 @@ length varname $50;
 	varname="&varlabel";
 run; 
 
-proc sort data=_parms_c; by char_order; run; 
+/*proc sort data=_parms_c; by char_order; run; */
 
 %* get only one instance of categorical variable label;
 proc sql;
@@ -632,8 +632,9 @@ run;
 
 data _parms_c;
 set _parms_c;
-	if varname=" " then g_p_value=" ";
-keep parameter class_order varname _nfreq_percent _tfreq ClassVal0 OR_CI p_value g_p_value char_order ;
+	if class_order not in (1) then g_p_value=" ";
+	/*if varname=" " then g_p_value=" ";*/
+keep parameter class_order varname _nfreq_percent _tfreq ClassVal0 OR_CI p_value g_p_value /*char_order */;
 run;
 
 %* ;
@@ -677,7 +678,7 @@ set _parms_c end=eof;
 		OR_CI="";
 		p_value="";
 		g_p_value="";
-		char_order=.;
+		/*char_order=.;*/
 		Frequency=.;
 		Freq="";
 		N="";
@@ -766,7 +767,7 @@ length Parameter $25 ClassVal0 $50 p_value $15;
 set _parms_n;
 	Parameter = variable;
 	ClassVal0= "";
-	if ProbChiSq < 0.001 then p_value = "<.001"; 
+	if ProbChiSq <=0 then p_value = "<.001"; 
 	else p_value = put(ProbChiSq,comma10.&pvalue_decimal.);
 	g_p_value=p_value;
 	if parameter="Intercept" then delete;
@@ -926,7 +927,7 @@ set _parms_n end=eof;
 		OR_CI="";
 		p_value="";
 		g_p_value="";
-		char_order=.;
+		/*char_order=.;*/
 		Frequency=.;
 		Freq="";
 		N="";
@@ -973,7 +974,7 @@ ods exclude all;
 %let model = &outcome(event="&outevent")= &catvars &contvars;
 
 %* save paramater estimates, odds ratios and type 3 global p-value ods tables;
-ods output 	Type3=_gstats
+ods output 	ModelANOVA=_gstats
 			ParameterEstimates=_parms 
 			OddsRatios=_orstat;
 
@@ -1017,7 +1018,7 @@ data _parms;
 length Parameter $25 ClassVal0 $50 M_p_value $15;
 set _parms;
 	Parameter = variable;
-	if ProbChiSq < 0.001 then M_p_value = "<.001"; 
+	if ProbChiSq <= 0 then M_p_value = "<.001"; 
 	else M_p_value = put(ProbChiSq,comma10.&pvalue_decimal.);
 	if parameter="Intercept" then delete;
 	if &domain=&domvalue then output;
@@ -1057,12 +1058,12 @@ set _parms;
 	if M_OR_CI=" " and ClassVal0 ne " " then M_OR_CI="ref";
 run;
 
-%* obtain type3 p-value for testing importance of variable;
+%* obtain ModelANOVA p-value for testing importance of variable;
 data _gstats;
 length Parameter $25 M_g_p_value $15;
 set _gstats;
 	Parameter=Effect;
-	if ProbChiSq < 0.001 then M_g_p_value = "<.001"; 
+	if ProbChiSq <= 0 then M_g_p_value = "<.001"; 
 	else M_g_p_value = put(ProbChiSq,comma10.&pvalue_decimal.);
 	if &domain=&domvalue then output;
 	keep Effect Parameter M_g_p_value;
@@ -1186,7 +1187,7 @@ proc report data = logit_table headline spacing=1 split = "*" nowd;
 	column ClassVal0 ("&outcomelab" N Freq)  ("Unadjusted * odds ratios" OR_CI p_value g_p_value) ("Adjusted * odds ratios" M_OR_CI M_p_value M_g_p_value);
 	define ClassVal0 / display width = 50 right missing "Characteristic";
     define N / display width = 10 right missing "Total";
-    define Freq / display width = 10 right missing "&outevent n * (Weighted %)";
+    define Freq / display width = 10 right missing "&outevent, n * (Weighted %)";
 	define OR_CI / display width = 20 center missing "OR (95% CI)";
 	define p_value / display width = 10 center missing "P-value";
 	define g_p_value / display width = 10 center missing "Global * p-value";
@@ -1201,3 +1202,4 @@ ods tagsets.excelxp close;
 ods rtf close;
 
 %mend svy_printlogit;
+
