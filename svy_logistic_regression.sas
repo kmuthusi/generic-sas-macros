@@ -1,123 +1,123 @@
 
 /*********************************************************************************
 **********************************************************************************
-** 					Copyright (C) 2018, Muthusi, Jacques						**
-**																				**
-** Description  : Generic SAS program to create publication ready tables from 	**
+** 					Copyright (C) 2021, Muthusi, Jacques			**
+**												**
+** Description  : Generic SAS program to create publication ready tables from 			**
 ** 				  logistic regression models using survey or non-survey data.	**
 **				  It outputs results of both simple (univariate) and multiple 	**
 **				  (multivariate) regression into one table (ideal for Table 2).	**
-**																				**
-** Platform     : Windows                                                      	**
-**																				**
-** Macros used  : %svy_logitc - macro to perform simple (univariate) logistic 	**
-**				  regression model for categorical predictors.					**
-**																				**
+**												**
+** Platform     : Windows                                                      			**
+**												**
+** Macros used  : %svy_logitc - macro to perform simple (univariate) logistic 			**
+**				  regression model for categorical predictors.			**
+**												**
 **				  %svy_logitn - macro to perform simple (univariate) logistic 	**
-**				  regression model for continuous predictors.					**
-**																				**
+**				  regression model for continuous predictors.			**
+**												**
 **				  %svy_unilogit - macro to combine results from %svy_logitc  	**
-** 				  and %svy_logitn and process output in a nice format.			**
-**																				**
+** 				  and %svy_logitn and process output in a nice format.		**
+**												**
 **				  %svy_multilogit - macro to perform multiple (multivariate) 	**
-**				  logistic regression on selected predictors. 					**
-**																				**
-**				  %svy_printlogit - macro to combine results from simple 		**
+**				  logistic regression on selected predictors. 			**
+**												**
+**				  %svy_printlogit - macro to combine results from simple 	**
 **				  (univariate) and multiple (multivariate) logistic regression	**
 **				  and package the output in a publication ready table which is 	**
-**				  exported to MS Word and Excel.								**
-**																				**
+**				  exported to MS Word and Excel.				**
+**												**
 **				  %runquit - macro to enforce in-built SAS validation checks  	**
-** 				  on input parameters.											**
-**																				**
-** Input        : Any 		                                            		**
-**																				**
-** Output       : Publication ready table of Odds Ratio (95% CI) from 			**
-**				  simple (univariate) and multiple (multivariate) logistic 		**
-**				  regression in MS Word and Excel.								**
-**																				**
-** Main macro parameters:														**
-**																				**
-** %svy_unilogit and %svy_multilogit											**
-**		dataset		= input dataset,											**
-**		condition	= (optional) any conditional statements to create			**
-**					  /fine-tune final analysis dataset,						**
+** 				  on input parameters.						**
+**												**
+** Input        : Any 		                                            			**
+**												**
+** Output       : Publication ready table of Odds Ratio (95% CI) from 				**
+**				  simple (univariate) and multiple (multivariate) logistic 	**
+**				  regression in MS Word and Excel.				**
+**												**
+** Main macro parameters:									**
+**												**
+** %svy_unilogit and %svy_multilogit								**
+**		dataset		= input dataset,						**
+**		condition	= (optional) any conditional statements to create		**
+**					  /fine-tune final analysis dataset,			**
 **		outcome	 	= the outcome variable of interest e.g., HIV status,		**
 **		outevent	= the value of outcome variable we are interested in		**
-**					  modelling e.g., in this case event = Positive,			**
+**					  modelling e.g., in this case event = Positive,	**
 **		catvars		= list of categorical variables (separated by space),  		**
 **		contvars	= list of continuous variables (separated by space),  		**
 **		class		= class statement for categorical predictors specifying		**
-**					  baseline category. Baseline category for outcome 			**
-**					  variable is also specified here,							**
-**		strata		= (optional) survey stratification variable,				**
-**		cluster	 	= (optional) survey clustering variable,					**
-**		weight		= (optional) survey weighting variable,						**
-**		domain 		= (optional) domain variable,								**
+**					  baseline category. Baseline category for outcome 	**
+**					  variable is also specified here,			**
+**		strata		= (optional) survey stratification variable,			**
+**		cluster	 	= (optional) survey clustering variable,			**
+**		weight		= (optional) survey weighting variable,				**
+**		domain 		= (optional) domain variable,					**
 **		domvalue 	= the value of domain variable we are interested in,		**
 **		print		= variable for displaying/suppressing the output table 		**
-**					  on the output window (NO=suppress, YES=show),				**
-**																				**
-** %svy_printlogit																**
-**		tablename	= shortname of output table,								**
-**		tabletitle	= title of output table										**
-**																				**
-** Sample program usage:														**
-**																				**
-** %svy_unilogit(dataset= kais_final, 											**
-**			   outcome 	= hiv,													**
-**			   outevent	= Positive, 											**
-**			   catvars	= sex age, 												**
-**			   contvars	= cd4,													**
+**					  on the output window (NO=suppress, YES=show),		**
+**												**
+** %svy_printlogit										**
+**		tablename	= shortname of output table,					**
+**		tabletitle	= title of output table						**
+**												**
+** Sample program usage:									**
+**												**
+** %svy_unilogit(dataset= kais_final, 								**
+**			   outcome 	= hiv,							**
+**			   outevent	= Positive, 						**
+**			   catvars	= sex age, 						**
+**			   contvars	= cd4,							**
 **			   class 	= hiv (ref="Negative") sex(ref="Male") age(ref="15-24"),**
-**			   weight	= bl_weight,											**
-**			   cluster	= cluster,												**
-**			   strata	= strata,												**
-**			   domain	= ,														**
-**			   domvalue	= ,														**
-**			   condition= if hiv in (1,2),										**
-**			   print	= YES); 												**
-**																				**
-** %svy_multilogit(dataset	= kais_final, 										**
-**				   outcome 	= hiv,												**
-**				   outevent	= Positive, 										**
-**				   catvars	= sex age, 											**
-**				   contvars	= cd4,												**
-**				   class 	= hiv (ref="Negative") sex(ref="Male"),				**
-**				   weight	= bl_weight,										**
-**				   cluster	= cluster,											**
-**				   strata	= strata,											**
-** 				   domain 	= ,													**
-**			   	   domvalue	= ,													**
-**				   condition= if hiv in (1,2),									**
-**				   print	= YES); 											**
-**																				**
-** %svy_printlogit(tablename  = svy_logit_table,								**
-**				   tabletitle = Table 1: Predictors of HIV prevalence);			**
-**																				**
-** Validation history                                                         	**
-**       Validated by :                                    Date:           	    **
-**																				**
-** Modification history                                                    	    **
-**       Modified by  : Muthusi, Jacques                   Date: 17JUL2017 	    **
-**                                                                         	    **
+**			   weight	= bl_weight,						**
+**			   cluster	= cluster,						**
+**			   strata	= strata,						**
+**			   domain	= ,							**
+**			   domvalue	= ,							**
+**			   condition= if hiv in (1,2),						**
+**			   print	= YES); 						**
+**												**
+** %svy_multilogit(dataset	= kais_final, 							**
+**				   outcome 	= hiv,						**
+**				   outevent	= Positive, 					**
+**				   catvars	= sex age, 					**
+**				   contvars	= cd4,						**
+**				   class 	= hiv (ref="Negative") sex(ref="Male"),		**
+**				   weight	= bl_weight,					**
+**				   cluster	= cluster,					**
+**				   strata	= strata,					**
+** 				   domain 	= ,						**
+**			   	   domvalue	= ,						**
+**				   condition= if hiv in (1,2),					**
+**				   print	= YES); 					**
+**												**
+** %svy_printlogit(tablename  = svy_logit_table,						**
+**				   tabletitle = Table 1: Predictors of HIV prevalence);		**
+**												**
+** Validation history                                                         			**
+*       Validated by :                                    Date:           	    		**
+**												**
+** Modification history                                                    	    		**
+**       Modified by  : Muthusi, Jacques                   Date: 17JUL2017 	    		**
+**                                                                         	    		**
 ** Added columns for total N, number & percent of cases n(%)					**
-**																				**
-**       Modified by  : Muthusi, Jacques                   Date: 25JUL2017 	    **
-**																				**
-** Added %runquit() macro to enforce in-built SAS validation checks on 			**
-** input parameters																**
-** Added code to validate input parameters										**
-**																				**
-**       Modified by  : Muthusi, Jacques                   Date: 05JUN2019 	    **
-**																				**
+**												**
+**       Modified by  : Muthusi, Jacques                   Date: 25JUL2017 	    		**
+**												**
+** Added %runquit() macro to enforce in-built SAS validation checks on 				**
+** input parameters										**
+** Added code to validate input parameters							**
+**												**
+**       Modified by  : Muthusi, Jacques                   Date: 05JUN2019 	    		**
+**												**
 ** Changed number of decimal points for OR (95% CI) from 1 to 2					**
-**																				**
-**       Modified by  : Muthusi, Jacques                   Date: 25NOV2019 	    **
-**																				**
-** Added parameters pvalue_decimal and or_decimal to specify number of decimal 	**
-** points for P-value and OR (95% CI) respectively								**
-**																				**
+**												**
+**       Modified by  : Muthusi, Jacques                   Date: 25NOV2019 	    		**
+**												**
+** Added parameters pvalue_decimal and or_decimal to specify number of decimal 			**
+** points for P-value and OR (95% CI) respectively						**
+**												**
 **********************************************************************************
 *********************************************************************************/
 
