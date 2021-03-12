@@ -134,6 +134,8 @@ run;
 				 _rep_weights_values=,
 				 _varmethod_opts=,
 				 _missval_opts=,
+				 _est_decimal=,
+				 _p_value_decimal=,
 				 _idvar=,
 				 _cat_type=,
 				 _cont_type=,
@@ -143,7 +145,7 @@ run;
 				 _outdir=,
 				 _print=);
 
-data _dataset re_dataset xx_dataset _final_report_freq _report_freq _final_report_cont _report_cont _final_report ; run;
+data _dataset re_dataset xx_dataset _final_report_freq _report_freq _final_report_cont _report_cont _final_report; run;
 
 %* validation for input parameters;
 	%if %length(&_data) eq 0 %then %do;
@@ -337,7 +339,9 @@ run;
 					 _strata		= &_strata,
 					 _cluster		= &_cluster,
 	                 _weight		= &_weight,
-					 _missval_opts	= &_missval_opts);
+					 _missval_opts	= &_missval_opts,
+					 _est_decimal	= &_est_decimal,
+					_p_value_decimal= &_p_value_decimal);
 	%end;
 
 %* for row percentages;
@@ -353,7 +357,9 @@ run;
 					 _strata		= &_strata,
 					 _cluster		= &_cluster,
 	                 _weight		= &_weight,
-					 _missval_opts	= &_missval_opts);
+					 _missval_opts	= &_missval_opts,
+					 _est_decimal	= &_est_decimal,
+					_p_value_decimal= &_p_value_decimal);
 	%end;
 
 %* for column percentages;
@@ -369,7 +375,9 @@ run;
 				 _strata		= &_strata,
 				 _cluster		= &_cluster,
                  _weight		= &_weight,
-				 _missval_opts	= &_missval_opts);
+				 _missval_opts	= &_missval_opts,
+				 _est_decimal	= &_est_decimal,
+				_p_value_decimal= &_p_value_decimal);
 
 	%end;
 
@@ -408,7 +416,9 @@ run;
 						_strata		= &_strata,
 						_cluster	= &_cluster,
 				        _weight		= &_weight,
-					 	_missval_opts	= &_missval_opts);
+					 _missval_opts	= &_missval_opts,
+					 _est_decimal	= &_est_decimal,
+					_p_value_decimal= &_p_value_decimal);
 
 		%end;
 
@@ -424,7 +434,9 @@ run;
 						_strata		= &_strata,
 						_cluster	= &_cluster,
 				        _weight		= &_weight,
-					 	_missval_opts	= &_missval_opts);
+					 _missval_opts	= &_missval_opts,
+					 _est_decimal	= &_est_decimal,
+					_p_value_decimal= &_p_value_decimal);
 
 		%end;
 
@@ -439,10 +451,17 @@ run;
 %end;
 
 %* get domain size;
+data _domain_;
+set _dataset;
+	%if %length(&_missval_opts) ne 0 %then %do; 
+		if &_byvar eq &_missval_lab or &_byvar eq . then delete;
+	%end;
+run;
+
 proc sql noprint;
-	select count(*) into: nobs separated by ' ' from _temp_ 
-	where &_domain = &_domainvalue and &_byvar ne &_missval_lab and 
-		%if %upcase(&_cat_type) = PREV %then %do; &_outcome ne &_missval_lab %end;
+	select count(*) into: nobs separated by ' ' from _domain_ 
+	where &_domain = &_domainvalue and &_byvar ne &_missval_lab or &_byvar eq . and not missing(&_weight) and 
+		%if %upcase(&_cat_type) = PREV %then %do; &_outcome ne &_missval_lab or &_outcome ne . %end;
 		%else %do; &_outcome=&_outvalue %end;;
 quit;
 
@@ -517,7 +536,7 @@ proc report data=_final_report  headline split="*" missing spacing=1 nowd;
         column variable
         %do i  =  1 %to &no_cols;
         ("&&collabel&i."  N_&&colvname&i.  _c_&&colvname&i. _i_&&colvname&i) %end;
-		("Total"  N_total_&_byvar _c_total_&_byvar _i_total_&_byvar);
+		("Total"  N_total_&_byvar _c_total_&_byvar _i_total_&_byvar) p_value;
 		define variable 		/ display width = 30 right "Characteristic" flow;
         %do j=1 %to &no_cols;
         define N_&&colvname&j.  / display width=10 right "Unweighted * n/N" flow;
@@ -527,7 +546,7 @@ proc report data=_final_report  headline split="*" missing spacing=1 nowd;
         define N_total_&_byvar  / display width=10 right "Unweighted * n/N" flow;
 		define _c_total_&_byvar / display width=10  center "Weighted * Prev. %" flow;
         define _i_total_&_byvar / display width=20 center "95 % CI" flow;
-run;
+		define p_value 			/ display width=20 right "P-value" flow;run;
 %end;
 
 %else %do;
@@ -538,8 +557,9 @@ run;
 proc report data=_final_report  headline split="*" missing spacing=1 nowd;
         column variable
         %do i  =  1 %to &no_cols;
-        ("&&collabel&i."  N_&&colvname&i.  _c_&&colvname&i. _i_&&colvname&i) %end;;
-		*("Total"  N_total_&_byvar _c_total_&_byvar _i_total_&_byvar);
+        ("&&collabel&i."  N_&&colvname&i.  _c_&&colvname&i. _i_&&colvname&i) %end;
+		%*("Total"  N_total_&_byvar _c_total_&_byvar _i_total_&_byvar);
+		p_value;
 		define variable 		/ display width = 30 right "Characteristic" flow;
         %do j=1 %to &no_cols;
         define N_&&colvname&j. 	/ display width=10 right "Unweighted * n/N" flow;
@@ -549,11 +569,12 @@ proc report data=_final_report  headline split="*" missing spacing=1 nowd;
 		define _i_&&colvname&j. / display width=20 center 
 			%if %upcase(&_cont_type) = MEDIAN %then %do; "IQR * " flow; %end;
 			%if %upcase(&_cont_type) = MEAN %then %do; "95 % CI * " flow; %end;;
-		* define breakvar/ ' ' style(column)={cellwidth=3%};
+		%* define breakvar/ ' ' style(column)={cellwidth=3%};
         %end;
-        * define N_total_&_byvar  / display width=10 right "Unweighted * n/N " flow;
-		* define _c_total_&_byvar / display width=10  center "Weighted %" flow;
-        * define _i_total_&_byvar / display width=20 center "95 % CI" flow;
+		define p_value 			/ display width=20 right "P-value" flow;
+        %* define N_total_&_byvar  / display width=10 right "Unweighted * n/N " flow;
+		%* define _c_total_&_byvar / display width=10  center "Weighted %" flow;
+        %* define _i_total_&_byvar / display width=20 center "95 % CI" flow;
 run;
 %end;
 
@@ -562,7 +583,8 @@ proc report data=_final_report  headline split="*" missing spacing=1 nowd;
         column variable
         %do i  =  1 %to &no_cols;
         ("&&collabel&i."  _n_&&colvname&i.  _c_&&colvname&i. _i_&&colvname&i) %end;
-		("Total"  _n_total_&_byvar _c_total_&_byvar _i_total_&_byvar);
+		("Total"  _n_total_&_byvar _c_total_&_byvar _i_total_&_byvar) p_value;
+
 		define variable 		/ display width = 30 right "Characteristic" flow;
         %do j=1 %to &no_cols;
         define _n_&&colvname&j. / display width=10 right "Unweighted * n" flow;
@@ -572,7 +594,7 @@ proc report data=_final_report  headline split="*" missing spacing=1 nowd;
         define _i_&&colvname&j. / display width=20 center 
 			%if %upcase(&_cont_type) = MEDIAN %then %do; "IQR" flow; %end;
 			%if %upcase(&_cont_type) = MEAN %then %do; "95 % CI" flow; %end;;
-		* define breakvar/ ' ' style(column)={cellwidth=3%};
+		%* define breakvar/ ' ' style(column)={cellwidth=3%};
         %end;
         define _n_total_&_byvar / display width=10 right "Unweighted * N" flow;
 		define _c_total_&_byvar / display width=10  center 
@@ -581,6 +603,7 @@ proc report data=_final_report  headline split="*" missing spacing=1 nowd;
         define _i_total_&_byvar / display width=20 center 
 			%if %upcase(&_cont_type) = MEDIAN %then %do; "IQR * " flow; %end;
 			%if %upcase(&_cont_type) = MEAN %then %do; "95 % CI * " flow; %end;;
+		define p_value 			/ display width=20 right "P-value" flow;
 run;
 %end;
 %end;
@@ -592,18 +615,20 @@ run;
 proc report data=_final_report  headline split="*" missing spacing=1 nowd;
         column variable
         %do i  =  1 %to &no_cols;
-        ("&&collabel&i."  N_&&colvname&i.  _c_&&colvname&i. _i_&&colvname&i) %end;;
-		*("Total"  N_total_&_byvar _c_total_&_byvar _i_total_&_byvar);
+        ("&&collabel&i."  N_&&colvname&i.  _c_&&colvname&i. _i_&&colvname&i) %end;
+		%*("Total"  N_total_&_byvar _c_total_&_byvar _i_total_&_byvar);
+		p_value;
 		define variable 		/ display width = 30 right "Characteristic" flow;
         %do j=1 %to &no_cols;
         define N_&&colvname&j.  / display width=10 right "Unweighted * n/N" flow;
 		define _c_&&colvname&j. / display width=10  center "Weighted % * " flow;
 		define _i_&&colvname&j. / display width=20 center "95 % CI * " flow;
-		* define breakvar/ ' ' style(column)={cellwidth=3%};
+		%* define breakvar/ ' ' style(column)={cellwidth=3%};
         %end;
-        * define N_total_&_byvar  / display width=10 right "Unweighted * n/N " flow;
-		* define _c_total_&_byvar / display width=10  center "Weighted %" flow;
-        * define _i_total_&_byvar / display width=20 center "95 % CI" flow;
+		define p_value 			/ display width=20 right "P-value" flow;
+        %* define N_total_&_byvar  / display width=10 right "Unweighted * n/N " flow;
+		%* define _c_total_&_byvar / display width=10  center "Weighted %" flow;
+        %* define _i_total_&_byvar / display width=20 center "95 % CI" flow;
 run;
 %end;
 
@@ -612,7 +637,7 @@ proc report data=_final_report  headline split="*" missing spacing=1 nowd;
         column variable
         %do i  =  1 %to &no_cols;
         ("&&collabel&i."  _n_&&colvname&i.  _c_&&colvname&i. _i_&&colvname&i) %end;
-		("Total"  _n_total_&_byvar _c_total_&_byvar _i_total_&_byvar);
+		("Total"  _n_total_&_byvar _c_total_&_byvar _i_total_&_byvar) p_value;
 		define variable 		/ display width = 30 right "Characteristic" flow;
         %do j=1 %to &no_cols;
         define _n_&&colvname&j. / display width=10 right "Unweighted * n" flow;
@@ -622,6 +647,8 @@ proc report data=_final_report  headline split="*" missing spacing=1 nowd;
         define _n_total_&_byvar / display width=10 right "Unweighted * N " flow;
 		define _c_total_&_byvar / display width=10  center  "Weighted % * " flow;
         define _i_total_&_byvar / display width=20 center "95 % CI * " flow;
+		define p_value 			/ display width=20 right "P-value" flow;
+
 run;
 %end;
 %end;
@@ -633,8 +660,9 @@ run;
 proc report data=_final_report  headline split="*" missing spacing=1 nowd;
         column variable
         %do i  =  1 %to &no_cols;
-        ("&&collabel&i."  N_&&colvname&i.  _c_&&colvname&i. _i_&&colvname&i) %end;;
-		*("Total"  N_total_&_byvar _c_total_&_byvar _i_total_&_byvar);
+        ("&&collabel&i."  N_&&colvname&i.  _c_&&colvname&i. _i_&&colvname&i) %end;
+		%*("Total"  N_total_&_byvar _c_total_&_byvar _i_total_&_byvar);
+		p_value;
 		define variable / display width = 30 right "Characteristic" flow;
         %do j=1 %to &no_cols;
         define N_&&colvname&j.  / display width=10 right "Unweighted * n/N " flow;
@@ -644,11 +672,12 @@ proc report data=_final_report  headline split="*" missing spacing=1 nowd;
 		define _i_&&colvname&j. / display width=20 center 
 			%if %upcase(&_cont_type) = MEDIAN %then %do; "95 % CI * (or IQR)" flow; %end;
 			%if %upcase(&_cont_type) = MEAN %then %do; "95 % CI * " flow; %end;;
-		* define breakvar/ ' ' style(column)={cellwidth=3%};
+		%* define breakvar/ ' ' style(column)={cellwidth=3%};
         %end;
-        * define N_total_&_byvar  / display width=10 right "Unweighted * n/N " flow;
-		* define _c_total_&_byvar / display width=10  center "Weighted %" flow;
-        * define _i_total_&_byvar / display width=20 center "95 % CI" flow;
+		define p_value 			/ display width=20 right "P-value" flow;
+        %* define N_total_&_byvar  / display width=10 right "Unweighted * n/N " flow;
+		%* define _c_total_&_byvar / display width=10  center "Weighted %" flow;
+        %* define _i_total_&_byvar / display width=20 center "95 % CI" flow;
 run;
 %end;
 
@@ -657,7 +686,7 @@ proc report data=_final_report  headline split="*" missing spacing=1 nowd;
         column variable
         %do i  =  1 %to &no_cols;
         ("&&collabel&i."  _n_&&colvname&i.  _c_&&colvname&i. _i_&&colvname&i) %end;
-		("Total"  _n_total_&_byvar _c_total_&_byvar _i_total_&_byvar);
+		("Total"  _n_total_&_byvar _c_total_&_byvar _i_total_&_byvar) p_value;
 		define variable / display width = 30 right "Characteristic" flow;
         %do j=1 %to &no_cols;
         define _n_&&colvname&j. / display width=10 right "Unweighted * n " flow;
@@ -667,7 +696,7 @@ proc report data=_final_report  headline split="*" missing spacing=1 nowd;
         define _i_&&colvname&j. / display width=20 center 
 			%if %upcase(&_cont_type) = MEDIAN %then %do; "95 % CI * (or IQR)" flow; %end;
 			%if %upcase(&_cont_type) = MEAN %then %do; "95 % CI * " flow; %end;;
-		* define breakvar/ ' ' style(column)={cellwidth=3%};
+		%* define breakvar/ ' ' style(column)={cellwidth=3%};
         %end;
         define _n_total_&_byvar / display width=10 right "Unweighted * N " flow;
 		define _c_total_&_byvar / display width=10  center 
@@ -676,6 +705,7 @@ proc report data=_final_report  headline split="*" missing spacing=1 nowd;
         define _i_total_&_byvar / display width=20 center 
 			%if %upcase(&_cont_type) = MEDIAN %then %do; "95 % CI * (or IQR)" flow; %end;
 			%if %upcase(&_cont_type) = MEAN %then %do; "95 % CI * " flow; %end;;
+		define p_value 			/ display width=20 right "P-value" flow;
 run;
 %end;
 %end;
@@ -703,10 +733,12 @@ ods exclude none;
 				_strata=,
 				_cluster=,
                 _weight=,
-				_missval_opts=);
-
+				_missval_opts=,
+				_est_decimal=,
+				_p_value_decimal=);
+	
 %* clean temporary datasets;
-data _temp_ Crosstab1 Crosstabtotal1 Crosstabtotal Crosstab totals merged final xtab0 xtab1 _merge _merge_level _merge_total _merge_varname _report_freq; run;
+data _temp_ Crosstab1 Crosstabtotal1 Crosstabtotal Crosstab chitest totals merged final xtab0 xtab1 _merge _merge_level _merge_total _merge_varname _report_freq; run;
 
 %* finetuning the data;
 data _temp_;
@@ -723,7 +755,7 @@ set &_data;
 run;
 
 %* create the cross-tabluation table;
-ods output CrossTabs=Crosstab1;
+ods output 	CrossTabs=Crosstab1; 
 proc surveyfreq data=_temp_ %if %upcase(&_varmethod)=JK or %upcase(&_varmethod)=JACKKNIFE or %upcase(&_varmethod)=BRR %then %do; 
 								varmethod = &_varmethod.; 
 							%end;
@@ -754,6 +786,58 @@ proc surveyfreq data=_temp_ %if %upcase(&_varmethod)=JK or %upcase(&_varmethod)=
 		%end;
 	%end;
 		tables  &_domain*&_byvar*&_factor*&_outcome/col cl chisq; 
+run;
+
+%* create table for Rao-Scott chi-square p-values;
+ods output 	ChiSq = chitest;
+proc surveyfreq data=_temp_ %if %upcase(&_varmethod)=JK or %upcase(&_varmethod)=JACKKNIFE or %upcase(&_varmethod)=BRR %then %do; 
+								varmethod = &_varmethod.; 
+							%end;
+							%if %length(&_missval_opts) ne 0 %then %do; 
+								&_commandspace. &_missval_opts. &_commandstring.;
+							%end;
+							%else %do;
+								&_commandstring.;
+							%end;
+
+%* apply if survey design if specified; 
+ 	%if %length(&_strata) ne 0 %then %do;  
+		stratum &_strata;
+	%end;
+	%if %length(&_cluster) ne 0 %then %do;  
+		cluster &_cluster;
+	%end;
+	%if %length(&_weight) ne 0 %then %do;  
+		weight  &_weight;
+	%end;
+	%if %length(&_rep_weights_values) ne 0 %then %do;
+		repweights &_rep_weights_values 
+		%if %length(&_varmethod_opts) ne 0 %then %do; 
+			/ &_varmethod_opts. &_commandstring.; 
+		%end;
+		%else %do;
+			&_commandstring.;
+		%end;
+	%end;
+		tables  &_byvar*&_factor/col cl chisq; 
+	where &_outcome=&_outvalue and &_domain=&_domainvalue; 
+run;
+
+data chitest(keep=nValue1); 
+	set chitest;
+	where Name1="P_RSCHI";
+run;
+
+data _xxxx;
+set chitest;
+run;
+
+data chitest;
+set chitest;
+	length p_value $8.;
+	if nValue1 =< 0.001 then p_value = "<.001"; 
+	else p_value = put(nValue1,8.&_p_value_decimal.);
+	keep p_value;
 run;
 
 %* create the cross-tabluation totals;
@@ -834,11 +918,11 @@ run;
 %* create table for the output;
 data final(keep=f_&_factor &_factor f_&_byvar &_byvar _n N _i _c variable);
 set merged;
-	charLCL     	= put(ColLowerCL,4.1);
-	charUCL     	= put(ColUpperCL,4.1);
-    _c     			= put(ColPercent,4.1);
-	_n   			= put(frequency, 5.0);
-	denominator 	= put(freqtot, 5.0);
+	charLCL     	= put(ColLowerCL,8.&_est_decimal.);
+	charUCL     	= put(ColUpperCL,8.&_est_decimal.);
+    _c     			= put(ColPercent,8.&_est_decimal.);
+	_n   			= put(frequency, 8.0);
+	denominator 	= put(freqtot, 8.0);
     variable		= f_&_factor;
 	_i 				= '('||trim(left(charLCL))||' - '||trim(left(charUCL))||')'; *confidence _i (LCL, UCL);
 	N 				= trim((_n))||'/'||trim(left(denominator));
@@ -959,6 +1043,16 @@ data _report_freq;
 set _merge_varname _merge_level _merge_total;                                
 run;
 
+data _report_freq;
+   set _report_freq;
+   if _n_ eq 1 then set chitest;
+run;
+
+data _report_freq;
+	set _report_freq;
+    if _n_ > 1 then p_value="";
+run;
+
 %mend svy_col;
 
 %* main cross tabulation macro for row percentages;
@@ -973,10 +1067,12 @@ run;
 				_strata=,
 				_cluster=,
                 _weight=,
-				_missval_opts=);
+				_missval_opts=,
+				_est_decimal=,
+				_p_value_decimal=);
 
 %* clean temporary datasets;
-data _temp_ _report_freq Crosstab1 Crosstabtotal1 Crosstabtotal Crosstab totals merged final xtab0 xtab1 _merge _merge_level _merge_total _merge_varname; run;
+data _temp_ _report_freq Crosstab1 Crosstabtotal1 Crosstabtotal Crosstab chitest totals merged final xtab0 xtab1 _merge _merge_level _merge_total _merge_varname; run;
 
 %* finetuning the data;
 data _temp_;
@@ -993,7 +1089,7 @@ set &_data;
 run;
 
 %* create the cross-tabluation table;
-ods output CrossTabs=Crosstab1;
+ods output CrossTabs=Crosstab1 ChiSq = chitest;
 proc surveyfreq data=_temp_ %if %upcase(&_varmethod)=JK or %upcase(&_varmethod)=JACKKNIFE or %upcase(&_varmethod)=BRR %then %do; 
 								varmethod = &_varmethod.; 
 							%end;
@@ -1024,6 +1120,54 @@ proc surveyfreq data=_temp_ %if %upcase(&_varmethod)=JK or %upcase(&_varmethod)=
 		%end;
 	%end;
 		tables  &_domain*&_factor*&_byvar*&_outcome/col cl chisq; 
+run;
+
+%* create table for Rao-Scott chi-square p-values;
+ods output 	ChiSq = chitest;
+proc surveyfreq data=_temp_ %if %upcase(&_varmethod)=JK or %upcase(&_varmethod)=JACKKNIFE or %upcase(&_varmethod)=BRR %then %do; 
+								varmethod = &_varmethod.; 
+							%end;
+							%if %length(&_missval_opts) ne 0 %then %do; 
+								&_commandspace. &_missval_opts. &_commandstring.;
+							%end;
+							%else %do;
+								&_commandstring.;
+							%end;
+
+%* apply if survey design if specified; 
+ 	%if %length(&_strata) ne 0 %then %do;  
+		stratum &_strata;
+	%end;
+	%if %length(&_cluster) ne 0 %then %do;  
+		cluster &_cluster;
+	%end;
+	%if %length(&_weight) ne 0 %then %do;  
+		weight  &_weight;
+	%end;
+	%if %length(&_rep_weights_values) ne 0 %then %do;
+		repweights &_rep_weights_values 
+		%if %length(&_varmethod_opts) ne 0 %then %do; 
+			/ &_varmethod_opts. &_commandstring.; 
+		%end;
+		%else %do;
+			&_commandstring.;
+		%end;
+	%end;
+		tables  &_byvar*&_factor/row cl chisq; 
+	where &_outcome=&_outvalue and &_domain=&_domainvalue; 
+run;
+
+data chitest(keep=nValue1); 
+	set chitest;
+	where Name1="P_RSCHI";
+run;
+
+data chitest;
+set chitest;
+	length p_value $8.;
+	if nValue1 =< 0.001 then p_value = "<.001"; 
+	else p_value = put(nValue1,8.&_p_value_decimal.);
+	keep p_value;
 run;
 
 %* create the cross-tabluation totals;
@@ -1139,11 +1283,11 @@ run;
 %* create table for the output;
 data final(keep=f_&_factor &_factor f_&_byvar &_byvar _n N _i _c variable frequency freqtot);
 set merged;
-	charLCL     	= put(ColLowerCL,4.1);
-	charUCL     	= put(ColUpperCL,4.1);
-    _c     			= put(ColPercent,4.1);
-	_n   			= put(frequency, 5.0);
-	denominator 	= put(freqtot, 5.0);
+	charLCL     	= put(ColLowerCL,8.&_est_decimal.);
+	charUCL     	= put(ColUpperCL,8.&_est_decimal.);
+    _c     			= put(ColPercent,8.&_est_decimal.);
+	_n   			= put(frequency, 8.0);
+	denominator 	= put(freqtot, 8.0);
     variable		= f_&_factor;
 	if put(ColLowerCL,5.0)=100 & put(ColUpperCL,5.0)=100 then do; charLCL=.; charUCL=.; end;
 	_i 				= '('||trim(left(charLCL))||' - '||trim(left(charUCL))||')';
@@ -1267,7 +1411,17 @@ run;
 %distcolval(_data=_merge_varname, _var=variable);
 
 data _report_freq;
-set _merge_varname _merge_level _merge_total;                                
+	set _merge_varname _merge_level _merge_total;                                
+run;
+
+data _report_freq;
+   set _report_freq;
+   if _n_ eq 1 then set chitest;
+run;
+
+data _report_freq;
+	set _report_freq;
+    if _n_ > 1 then p_value="";
 run;
 
 %mend svy_row;
@@ -1284,10 +1438,12 @@ run;
 				_strata=,
 				_cluster=,
                 _weight=,
-				_missval_opts=);
+				_missval_opts=,
+				_est_decimal=,
+				_p_value_decimal=);
 
 %* create the cross-tabluation table;
-data _temp_ _report_freq Crosstab1 Crosstabtotal1 Crosstabtotal Crosstab totals merged final xtab0 xtab1 _merge _merge_level _merge_total _merge_varname; run;
+data _temp_ _report_freq Crosstab1 Crosstabtotal1 Crosstabtotal Crosstab chitest totals merged final xtab0 xtab1 _merge _merge_level _merge_total _merge_varname; run;
 
 %* finetuning the data;
 data _temp_;
@@ -1304,7 +1460,7 @@ set &_data;
 run;
 
 %* create the cross-tabluation table;
-ods output CrossTabs=Crosstab1;
+ods output CrossTabs=Crosstab1 ChiSq = chitest;
 proc surveyfreq data=_temp_ %if %upcase(&_varmethod)=JK or %upcase(&_varmethod)=JACKKNIFE or %upcase(&_varmethod)=BRR %then %do; 
 								varmethod = &_varmethod.; 
 							%end;
@@ -1342,6 +1498,55 @@ set Crosstab1;
 	f_&_factor=vvalue(&_factor);
 run;
 
+%* create table for Rao-Scott chi-square p-values;
+ods output 	ChiSq = chitest;
+proc surveyfreq data=_temp_ %if %upcase(&_varmethod)=JK or %upcase(&_varmethod)=JACKKNIFE or %upcase(&_varmethod)=BRR %then %do; 
+								varmethod = &_varmethod.; 
+							%end;
+							%if %length(&_missval_opts) ne 0 %then %do; 
+								&_commandspace. &_missval_opts. &_commandstring.;
+							%end;
+							%else %do;
+								&_commandstring.;
+							%end;
+
+%* apply if survey design if specified; 
+ 	%if %length(&_strata) ne 0 %then %do;  
+		stratum &_strata;
+	%end;
+	%if %length(&_cluster) ne 0 %then %do;  
+		cluster &_cluster;
+	%end;
+	%if %length(&_weight) ne 0 %then %do;  
+		weight  &_weight;
+	%end;
+	%if %length(&_rep_weights_values) ne 0 %then %do;
+		repweights &_rep_weights_values 
+		%if %length(&_varmethod_opts) ne 0 %then %do; 
+			/ &_varmethod_opts. &_commandstring.; 
+		%end;
+		%else %do;
+			&_commandstring.;
+		%end;
+	%end;
+		tables  &_byvar*&_factor/row cl chisq; 
+	where &_outcome=&_outvalue and &_domain=&_domainvalue; 
+run;
+
+data chitest(keep=nValue1); 
+	set chitest;
+	where Name1="P_RSCHI";
+run;
+
+data chitest;
+set chitest;
+	length p_value $8.;
+	if nValue1 =< 0.001 then p_value = "<.001"; 
+	else p_value = put(nValue1,8.&_p_value_decimal.);
+	keep p_value;
+run;
+
+%* create the cross-tabulation totals;
 ods output CrossTabs=Crosstabtotal;
 proc surveyfreq data=_temp_ %if %upcase(&_varmethod)=JK or %upcase(&_varmethod)=JACKKNIFE or %upcase(&_varmethod)=BRR %then %do; 
 								varmethod = &_varmethod.; 
@@ -1416,11 +1621,11 @@ run;
 %* create table for the output;
 data final(keep=f_&_factor &_factor f_&_byvar _n N _i _c variable);
 set merged;
-	charLCL     	= put(RowLowerCL,4.1);
-	charUCL     	= put(RowUpperCL,4.1);
-	_c     			= put(RowPercent,4.1);
-	_n  	 		= put(frequency, 5.0);
-	denominator 	= put(freqtot, 5.0);
+	charLCL     	= put(RowLowerCL,8.&_est_decimal.);
+	charUCL     	= put(RowUpperCL,8.&_est_decimal.);
+	_c     			= put(RowPercent,8.&_est_decimal.);
+	_n  	 		= put(frequency, 8.0);
+	denominator 	= put(freqtot, 8.0);
 	variable		= f_&_factor;
 	if put(RowLowerCL,5.0)=100 & put(RowUpperCL,5.0)=100 then do; charLCL=.; charUCL=.; end;
 	_i 				= '('||trim(left(charLCL))||' - '||trim(left(charUCL))||')';
@@ -1539,6 +1744,16 @@ data _report_freq;
 set _merge_varname _merge_level _merge_total;                                
 run;
 
+data _report_freq;
+   set _report_freq;
+   if _n_ eq 1 then set chitest;
+run;
+
+data _report_freq;
+	set _report_freq;
+    if _n_ > 1 then p_value="";
+run;
+
 %mend svy_prev;
 
 %* macro to compute Median (IQR);
@@ -1553,7 +1768,9 @@ run;
 					_strata=,
 					_cluster=,
 	                _weight=,
-					_missval_opts=);
+					_missval_opts=,
+					_est_decimal=,
+					_p_value_decimal=);
 
 data _temp_ _report_cont _median_total _q1_total _q3_total _median_sub _q1_sub _q3_sub _median_freq _q1_freq _q3_freq _summc _summb _summa _summ3n _summ3s _summ _summ2 _summ1 _summ2n _summ2s _summ1n _summ1s; run;
 
@@ -1674,7 +1891,7 @@ run;
 
 data _summ2n;
 set _summ2n;
-	cValue1 =trim(left(put(&_contvar._N, 4.0)));
+	cValue1 =trim(left(put(&_contvar._N, 8.0)));
 run;
 
 ods output Quantiles=_summ2s;
@@ -1755,10 +1972,10 @@ run;
 data _summ;
 set _summ2 _summ1;
 	FREQ=cValue1+0;
-	_n=trim(left(put(cValue1, 4.0)));
-	_c=trim(left(put(Median,4.1)));
-	Q1=trim(left(put(Q1,4.1)));
-	Q3=trim(left(put(Q3,4.1)));
+	_n=trim(left(put(cValue1, 8.0)));
+	_c=trim(left(put(Median,8.&_est_decimal.)));
+	Q1=trim(left(put(Q1,8.&_est_decimal.)));
+	Q3=trim(left(put(Q3,8.&_est_decimal.)));
 	s_order=_n_;
 	keep &_byvar f_&_byvar FREQ _n _c Q1 Q3 s_order;
 	proc sort; by s_order;
@@ -1767,7 +1984,7 @@ run;
 data _summ;
 set _summ;
 	cum_n+FREQ;
-		if _n = "" then _n=trim(left(put(cum_n, 4.0)));
+		if _n = "" then _n=trim(left(put(cum_n, 8.0)));
 run;
 
 proc sort data = _temp_; by &_byvar ; run;
@@ -1789,10 +2006,10 @@ set _summ;
 if upcase(trim(left(f_&_byvar))) = upcase(trim(left("&&collabel&i"))) then do;
 	_n_&&colvname&i	=_n;
 	N_&&colvname&i	=_n_&&colvname&i;
-	_c_&&colvname&i	=trim(left(put(_c,4.1)));
+	_c_&&colvname&i	=trim(left(put(_c,8.&_est_decimal.)));
 	Q1&&colvname&i	=Q1;
 	Q3&&colvname&i	=Q3;
-	_i_&&colvname&i	="("||TRIM(LEFT(put(Q1&&colvname&i,4.1)))||" - "||TRIM(LEFT(put(Q3&&colvname&i,4.1)))||")";
+	_i_&&colvname&i	="("||TRIM(LEFT(put(Q1&&colvname&i,8.&_est_decimal.)))||" - "||TRIM(LEFT(put(Q3&&colvname&i,8.&_est_decimal.)))||")";
 end;
 %end;
 
@@ -1902,7 +2119,7 @@ run;
 data _summc;
 set _summc;
 	N_total	 = cValue1;
-	_i_total = "("||trim(left(put(Q1, 4.1))) ||" - "|| trim(left(put(Q3, 4.1))) ||")";
+	_i_total = "("||trim(left(put(Q1, 8.&_est_decimal.))) ||" - "|| trim(left(put(Q3, 8.&_est_decimal.))) ||")";
 run;
 
 data _null_; 
@@ -1927,10 +2144,10 @@ length
 	%end; $50;
 set _summc;
 	variable=varname;
-	_c_total_&_byvar = trim(left(put(_c,4.1)));
-	N_total_&_byvar	 = trim(left(put(_n,4.0)));
-	_n_total_&_byvar = trim(left(put(_n,4.0)));
-	_i_total_&_byvar = "("||trim(left(put(Q1, 4.1))) ||" - "|| trim(left(put(Q3, 4.1))) ||")";
+	_c_total_&_byvar = trim(left(put(_c,8.&_est_decimal.)));
+	N_total_&_byvar	 = trim(left(put(_n,8.0)));
+	_n_total_&_byvar = trim(left(put(_n,8.0)));
+	_i_total_&_byvar = "("||trim(left(put(Q1, 8.&_est_decimal.))) ||" - "|| trim(left(put(Q3, 8.&_est_decimal.))) ||")";
 
 run;
 
@@ -1948,7 +2165,9 @@ run;
 					_strata=,
 					_cluster=,
 	                _weight=,
-					_missval_opts=);
+					_missval_opts=,
+					_est_decimal=,
+					_p_value_decimal=);
 
 data _temp_ _report_cont _summc _summb _summa _summ3n _summ3s _summ _summ2 _summ1 _summ2n _summ2s _summ1n _summ1s; run;
 
@@ -2042,7 +2261,7 @@ run;
 
 data _summ2n;
 set _summ2n;
-	cValue1 =trim(left(put(&_contvar._N, 4.0)));
+	cValue1 =trim(left(put(&_contvar._N, 8.0)));
 run;
 
 ods output Statistics=_summ2s;
@@ -2093,8 +2312,8 @@ run;
 data _summ;
 set _summ2 _summ1;
 	FREQ=cValue1+0;
-	_n=trim(left(put(cValue1, 4.0)));
-	_c=trim(left(put(Mean,4.1)));
+	_n=trim(left(put(cValue1, 8.0)));
+	_c=trim(left(put(Mean,8.&_est_decimal.)));
 	LowerCLMean=LowerCLMean;
 	UpperCLMean=UpperCLMean;
 	s_order=_n_;
@@ -2105,7 +2324,7 @@ run;
 data _summ;
 set _summ;
 	cum_n+FREQ;
-		if _n = "" then _n=trim(left(put(cum_n, 4.0)));
+		if _n = "" then _n=trim(left(put(cum_n, 8.0)));
 run;
 
 proc sort data = _temp_; by &_byvar ; run;
@@ -2127,8 +2346,8 @@ set _summ;
 if upcase(trim(left(f_&_byvar))) = upcase(trim(left("&&collabel&i"))) then do;
 	_n_&&colvname&i	= _n;
 	N_&&colvname&i	= _n_&&colvname&i;
-	_c_&&colvname&i	= trim(left(put(_c, 4.1)));
-	_i_&&colvname&i	= "("||TRIM(LEFT(put(LowerCLMean,4.1)))||" - "||TRIM(LEFT(put(UpperCLMean,4.1)))||")";
+	_c_&&colvname&i	= trim(left(put(_c, 8.&_est_decimal.)));
+	_i_&&colvname&i	= "("||TRIM(LEFT(put(LowerCLMean,8.&_est_decimal.)))||" - "||TRIM(LEFT(put(UpperCLMean,8.&_est_decimal.)))||")";
 end;
 %end;
 
@@ -2211,7 +2430,7 @@ run;
 data _summc;
 set _summc;
 	N_total	 = cValue1;
-	_i_total = "("||trim(left(put(LowerCLMean, 4.1))) ||" - "|| trim(left(put(UpperCLMean, 4.1)))||")";
+	_i_total = "("||trim(left(put(LowerCLMean, 8.&_est_decimal.))) ||" - "|| trim(left(put(UpperCLMean, 8.&_est_decimal.)))||")";
 run;
 
 data _null_; 
@@ -2236,10 +2455,10 @@ length
 	%end; $50;
 set _summc;
 	variable=varname;
-	_c_total_&_byvar = trim(left(put(_c,4.1)));
-	N_total_&_byvar	 = trim(left(put(_n,4.0)));
-	_n_total_&_byvar = trim(left(put(_n,4.0)));
-	_i_total_&_byvar = "("||trim(left(put(LowerCLMean, 4.1))) ||" - "|| trim(left(put(UpperCLMean, 4.1))) ||")";
+	_c_total_&_byvar = trim(left(put(_c,8.&_est_decimal.)));
+	N_total_&_byvar	 = trim(left(put(_n,8.0)));
+	_n_total_&_byvar = trim(left(put(_n,8.0)));
+	_i_total_&_byvar = "("||trim(left(put(LowerCLMean, 8.&_est_decimal.))) ||" - "|| trim(left(put(UpperCLMean, 8.&_est_decimal.))) ||")";
 run;
 
 %mend svy_mean;
