@@ -84,8 +84,8 @@ option mlogic mprint symbolgen;
 		missval_opts		= ,
 		missval_lab		= -100,
 		condition 		= if ridageyr>=20,
-		pvalue_decimal		= 4,
-		or_decimal		= 3,
+		pvalue_decimal		= 3,
+		or_decimal		= 1,
 		print			= YES); 
 
 * define parameters for selected predictor variables;
@@ -112,8 +112,8 @@ option mlogic mprint symbolgen;
 		missval_opts		= ,
 		missval_lab		= -100,
 		condition 		= if ridageyr>=20,
-		pvalue_decimal		= 4,
-		or_decimal		= 3,
+		pvalue_decimal		= 3,
+		or_decimal		= 1,
 		print			= YES); 
 
 * output final table;
