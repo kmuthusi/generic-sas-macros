@@ -238,7 +238,7 @@ data xx_dataset;
 	&condition %if %length(&weight) ne 0 %then %do; 
 					and &weight > 0 
 				%end;
-				and &outcome ne &missval_lab and &outcome ne .;
+				if &outcome ne &missval_lab and &outcome ne .;
 	;
 run;
 
