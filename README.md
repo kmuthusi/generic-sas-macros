@@ -9,7 +9,7 @@ This is a SAS macro that generates metadata and data dictionaries for analysis d
 
 A sample macro call program, "metadata analysis file.sas", is also provided as part of this repository.
 
-## 2. %svy_freq macro
+## 2. %svy_freqs macro
 This is a generic SAS macro for creating publication ready table of cross-tabulation between a factor and a by group variable given a third variable using survey/non-survey data. It also recodes factor variables with character values to numeric values. Depending on the user specification, the macro outputs Col% or Row% or Prevalence% and corresponding 95% confidence intervals for categorical variable. It also outputs Means (95% CI) or Median (IQR)	for continous variables. 
 
 The macro is made up of several auxiliary sub-macros. The %svy_col sub-macro perform crosstabulation between a factorand by a group variable and output COL%. The %svy_row sub-macro performs crosstabulation between a factor and by a group variable and output ROW%. The %svy_prev sub-macro performs crosstabulation between a factor and by a group variable given a third variable and output (PREVALENCE%). The %svy_median sub-macro performs MEDIAN statistics for a continuous variable and a by group variable. The %svy_mean sub-macro performs MEAN statistics for a continuous variable and a by group variable. The %charvar sub-macro to recode variables with character values to numeric values whereas then %distcolval sub-macro is used to produce one instance of repeated values. The %runquit sub-macro enforces in-built SAS validation checks on input parameters.
