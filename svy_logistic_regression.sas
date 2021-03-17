@@ -969,11 +969,16 @@ ods exclude all;
 %if %length(&or_decimal) eq 0 %then %do;
 	%let or_decimal=1;
 %end;
+
+data xx_dataset;
+set xx_dataset;
 %if %length(&domain) eq 0 %then %do; 
 			domain_all=1;
 			%let domain=%str(domain_all);
 			%let domvalue=1;
 %end;
+run;
+
 %* set model statement using input parameters;
 %let model = &outcome(event="&outevent")= &catvars &contvars;
 
