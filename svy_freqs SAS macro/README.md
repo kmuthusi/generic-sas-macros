@@ -1,12 +1,23 @@
-# Place holder for Repository Name
+# `%svy_freqs`: A generic SAS macro for three-way crosstabulations
 This repository was created for use by CDC programs to collaborate on public health surveillance related projects in support of the CDC Surveillance Strategy.  Github is not hosted by the CDC, but is used by CDC and its partners to share information and collaborate on software.
 
-# Generic SAS macro `%svy_freqs` for three-way crosstabulations
-This is a generic SAS macro for creating publication ready table of threw-way cross-tabulation using survey/non-survey data. It also recodes factor variables with character values to numeric values. Depending on the user specification, the macro outputs Col% or Row% or Prevalence% and corresponding 95% confidence intervals for categorical variable. It also outputs Means (95% CI) or Median (IQR)	for continous variables. 
+# Macro description
+`%svy_freqs` is a SAS macro for creating publication ready table of threw-way cross-tabulation using survey/non-survey data. It also recodes factor variables with character values to numeric values. Depending on the user specification, the macro outputs Col% or Row% or Prevalence% and corresponding 95% confidence intervals for categorical variable. It also outputs Means (95% CI) or Median (IQR)	for continous variables.
 
-The macro is made up of several auxiliary sub-macros. The %svy_col sub-macro perform crosstabulation between a factorand by a group variable and output COL%. The %svy_row sub-macro performs crosstabulation between a factor and by a group variable and output ROW%. The %svy_prev sub-macro performs crosstabulation between a factor and by a group variable given a third variable and output (PREVALENCE%). The %svy_median sub-macro performs MEDIAN statistics for a continuous variable and a by group variable. The %svy_mean sub-macro performs MEAN statistics for a continuous variable and a by group variable. The %charvar sub-macro to recode variables with character values to numeric values whereas then %distcolval sub-macro is used to produce one instance of repeated values. The %runquit sub-macro enforces in-built SAS validation checks on input parameters. The macro has been developed to run on windows platform and might require appropriate adjustments to run on other operating systems platforms
+The macro is made up of several auxiliary sub-macros. The %svy_col sub-macro perform crosstabulation between a factorand by a group variable and output COL%. The %svy_row sub-macro performs crosstabulation between a factor and by a group variable and output ROW%. The %svy_prev sub-macro performs crosstabulation between a factor and by a group variable given a third variable and output (PREVALENCE%). The %svy_median sub-macro performs MEDIAN statistics for a continuous variable and a by group variable. The %svy_mean sub-macro performs MEAN statistics for a continuous variable and a by group variable. The %charvar sub-macro to recode variables with character values to numeric values whereas then %distcolval sub-macro is used to produce one instance of repeated values. The %runquit sub-macro enforces in-built SAS validation checks on input parameters. The macro has been developed to run on windows platform and might require appropriate adjustments to run on other operating systems platforms.
 
-The user should specify input parameters described in Table below unless the description is prefixed by (optional). The user, however, does not interact with the sub-macros. To achieve full potential of the SAS macro, the user must ensure that the analysis dataset is clean, analysis variables are well labelled, and values of variables have been converted into appropriate SAS formats before they can be input to the macro call.
+In summary, the macro has been design to provide the user with the following benefits:
+
+- Automated to shorten analysis time and eliminate error that arise during copy-pasting of analysis output.
+- Promote principles of reproducible research i.e., transparency, reproducibility, reusability.
+- Flexible to perform multiple functions i.e., compute column, row, and prevalence percentages. 
+- Generic to use datasets from survey and non-survey setting.
+- Provide options for dealing with missing data e.g., include in output or suppress.
+- For survey data allow for specification for variance estimation methods e.g., Jackknife & Balanced Repeated Replication.
+- Produce outputs with natural display of results useful in epidemiological and biomedical publications.
+
+
+The user should specify input parameters described in the table below unless the description is prefixed by (optional). The user, however, does not interact with the sub-macros. To achieve full potential of the SAS macro, the user must ensure that the analysis dataset is clean, analysis variables are well labelled, and values of variables have been converted into appropriate SAS formats before they can be input to the macro call.
 
 |Parameter|Description|
 |---------|-----------|
