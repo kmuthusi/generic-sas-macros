@@ -1,16 +1,8 @@
 # Place holder for Repository Name
 This repository was created for use by CDC programs to collaborate on public health surveillance related projects in support of the CDC Surveillance Strategy.  Github is not hosted by the CDC, but is used by CDC and its partners to share information and collaborate on software.
 
-# Generic SAS macros for creating publication-quality tables
-This repository contains a series of generic SAS macros for creating publication-quality tables. The final formatted output is exported into MS Word or Excel and can be incorporated directly into a manuscript or might require minimal edits to match journal specific publication requirements. They have been design to analysis data from both survey and non-survey settings. The macros have being developed to run on windows platform and might require appropriate adjustments to run on other operating systems platforms
-
-## 1. %metadata macro
-This is a SAS macro that generates metadata and data dictionaries for analysis datasets. It is very useful in performing data review to obtain such data metrics as the number of records, number of variables, and variables with missing values. It produces a publication-quality table displaying the variable name, variable description, data type, and summary statistics. For continuous variables it shows the total number of responses. If missing data are available the n column shows number of non-missing responses and the % column will show proportion of completeness. For categorical variables it shows the distribution of responses for each category including missing data.
-
-A sample macro call program, "metadata analysis file.sas", is also provided as part of this repository.
-
-## 2. %svy_freqs macro
-This is a generic SAS macro for creating publication ready table of cross-tabulation between a factor and a by group variable given a third variable using survey/non-survey data. It also recodes factor variables with character values to numeric values. Depending on the user specification, the macro outputs Col% or Row% or Prevalence% and corresponding 95% confidence intervals for categorical variable. It also outputs Means (95% CI) or Median (IQR)	for continous variables. 
+# Generic SAS macro `%svy_freqs` for three-way crosstabulations
+This is a generic SAS macro for creating publication ready table of threw-way cross-tabulation using survey/non-survey data. It also recodes factor variables with character values to numeric values. Depending on the user specification, the macro outputs Col% or Row% or Prevalence% and corresponding 95% confidence intervals for categorical variable. It also outputs Means (95% CI) or Median (IQR)	for continous variables. 
 
 The macro is made up of several auxiliary sub-macros. The %svy_col sub-macro perform crosstabulation between a factorand by a group variable and output COL%. The %svy_row sub-macro performs crosstabulation between a factor and by a group variable and output ROW%. The %svy_prev sub-macro performs crosstabulation between a factor and by a group variable given a third variable and output (PREVALENCE%). The %svy_median sub-macro performs MEDIAN statistics for a continuous variable and a by group variable. The %svy_mean sub-macro performs MEAN statistics for a continuous variable and a by group variable. The %charvar sub-macro to recode variables with character values to numeric values whereas then %distcolval sub-macro is used to produce one instance of repeated values. The %runquit sub-macro enforces in-built SAS validation checks on input parameters.
 
@@ -18,14 +10,7 @@ A sample macro call program, "svy_freqs analysis file.sas", is also provided as 
 
 A manuscript describing more about the macro contents and usage is available online at: https://www.biorxiv.org/content/10.1101/771303v1
 
-## 3. %svy_logistic_regression macro
-This is a generic SAS macro for creating publication-quality tables from simple and multiple logistic regression models. The macro uses both survey or non-survey data. It outputs a quality-publication table of Odds Ratio (95% CI) from simple (bi-variate) and multiple (multivariable) logistic regression in MS Word and Excel results. 
-
-The macro is made up of several auxiliary sub-macros. The %svy_logitc sub-macro performs simple (bivariate) logistic regression model on categorical predictors. The %svy_logitn sub-macro performs simple (bivariate) logistic regression model on continuous predictors. The %svy_multilogit sub-macro performs multiple (multivariable) logistic regression on selected predictors. The %svy_printlogit sub-macro combines results from simple (bivariate) and multiple (multivariable) logistic regression and packages the output in a publication-quality table which is exported to MS Word and Excel. The %runquit sub-macro enforces in-built SAS validation checks on input parameters. 
-
-A sample macro call program, "svy logistic regression anafile.sas", is also provided as part of this repository.
-
-A manuscript describing more about the macro contents and usage is available online at: https://doi.org/10.1371/journal.pone.0214262
+The macro has been developed to run on windows platform and might require appropriate adjustments to run on other operating systems platforms
 
 ## Public Domain
 This repository constitutes a work of the United States Government and is not
@@ -52,7 +37,6 @@ You should have received a copy of the Apache Software License along with this
 program. If not, see http://www.apache.org/licenses/LICENSE-2.0.html
 
 The source code forked from other open source projects will inherit its license.
-
 
 ## Privacy
 This repository contains only non-sensitive, publicly available data and
