@@ -1,105 +1,4 @@
 
-**************************************************************************************
-**************************************************************************************
-** Filename     : svy_freq.sas                                                 		**
-**				                                            						**
-** Author       : Muthusi, Jacques                        Date: 19JUL2016      		**
-**				                                            						**
-** Platform     : Windows                                                      		**
-**				                                            						**
-** Description  : Generic macro to create publication ready table of  				**
-** 				  crosstabulation between a factor and a by group variable given a  **
-**				  third variable using survey/non-survey data. It also recodes		**
-**				  variables with character values to numeric values					**
-**				                                            						**
-** Macros used  : %svy_col 	  - macro to perform crosstabulation between a factor 	**
-**				                and by a group variable and output COL%				**
-**  			: %svy_row 	  - macro to perform crosstabulation between a factor 	**
-**				             	and by a group variable  and output ROW%			**
-** 				: %svy_prev   - macro to perform crosstabulation between a factor 	**
-**				                and by a group variable given a third variable 		**
-**								and output ROW% (PREVALENCE)						**
-** 				: %svy_median - macro to perform MEDIAN statistics for a continuous **
-**				             	variable and a by group variable					**
-** 				: %svy_mean	  - macro to perform MEAN statistics for a continuous	**
-**				             	variable and a by group variable					**
-**				: %charvar 	  - macro to recode variables with character 			**
-** 				  			 	values to numeric values							**
-**				: %distcolval - macro to get one instance of repeated values		**
-**				                                            						**
-** Input        : Any dataset                                            			**
-**				                                            						**
-** Output       : Publication ready table of cross tabulation in MS Word and Excel	**
-**				                                            						**
-** Assumptions  :                                                               	**
-**																					**
-** Macro parameters:																**
-**		_data		 = input dataset,												**
-**		_condition	 = (optional) any conditional statements to create /fine-tune	**
-**					   final analysis dataset,										**
-**		_outcome	 = the third variable of interest e.g, HIV status,				**
-**		_outvalue	 = the value of third variable e.g., for HIV status 			**
-**					   we are interested in the positive outcome which is 			**
-**					   coded as 1,													**
-**		_factors	 = list of factor variables (separated by space) that 			**
-**					   goes to the rows,											**
-**		_contivars	 = list of continuous variables (separated by space) that 		**
-**					   goes to the rows as well,									**
-**		_byvar		 = by group variable that goes to the columns,					**
-**		_domain		 = sub-population (domain) variable of interest,				**
-**		_domainvalue = the value of domain variable of interest 					**
-**		_strata		 = (optional) survey stratification variable,					**
-**		_cluster	 = (optional) survey clustring variable,						**
-**		_weight		 = (optional) survey weighting variable,						**
-**		_idvar		 = unique subject (participant) identifier,						**
-**		_cat_type	 = type of analysis for categorical variables (ROW=row, 		**
-**					   COL=col, PREV=prevalence),									**
-**		_cont_type	 = type of analysis for continuous variables (MEAN=for mean,    **
-**					   MEDIAN=for median),											**
-**		_title		 = title of output table,										**
-**		_tablename	 = shortname of output table,									**
-**		_surveyname	 = shortname of survey name,									**
-**		_print		 = variable for displaying/suppressing the output table 		**
-**					   on the output window (NO=suppress, YES=show),				**
-**				                                            						**
-** Example call:																	**
-**	%svy_freqs ( _data			=kais_final,										**
-**				 _condition		=,													**
-**				 _outcome		=freq,												**
-**				 _outvalue		=1,													**
-**				 _factors		=agecat resid educ marital constcd,					**
-**				 _contvars		=age,												**
-**				 _byvar			=sex,												**
-**				 _domain		=hiv,												**
-**				 _domainvalue	=1,													**
-**				 _strata		=strata,											**
-**				 _cluster		=cluster,											**
-**	             _weight		=bl_weight,											**
-**				 _idvar			=pid,												**
-**				 _analysis		=prev,												**
-**				 _title			=Table 1: Prevalence of HIV among sampled clients,	**
-**				 _tablename		=kais_row,											**
-**				 _print			=YES);												**
-**																					**
-** Validation history                                                         		**
-**       Validated by : Muthusi, Jacques                  Date: 19AUG2016  	    	**
-**																					**
-** Modification history                                                    	    	**
-**       Modified by  : Muthusi, Jacques                  Date: 16OCT2017       	**
-**                                                                         	    	**
-**						Fixed %charvar macro										**
-**                                                                         	    	**
-**       Modified by  : Muthusi, Jacques                  Date: 29APR2019       	**
-**                                                                         	    	**
-**						Added statements for variance estimation methods			**
-**                                                                         	    	**
-**       Modified by  : Muthusi, Jacques                  Date: 29JUN2019       	**
-**                                                                         	    	**
-**						Updated statements for validating input parameters			**
-**                                                                         	    	**
-**************************************************************************************
-**************************************************************************************;
-
 options mlogic mprint symbolgen;
 
 * helper macro to test for error and exit if so -PWY;
@@ -117,7 +16,7 @@ data _null_;
 %put &_commandstring ;
 run;
 
-%macro svy_freqs(_data=,
+%macro svy_freqs(		 _data=,
 				 _condition=,
 				 _outcome=,
 				 _factors=,
@@ -129,7 +28,7 @@ run;
 				 _domainvalue=,
 				 _strata=,
 				 _cluster=,
-                 _weight=,
+                 		 _weight=,
 				 _varmethod=,
 				 _rep_weights_values=,
 				 _varmethod_opts=,
@@ -328,7 +227,7 @@ run;
 
 %* for prevalence;
 	%if %upcase(&_cat_type) = PREV %then %do;
-		%svy_prev	(_data			= xx_dataset,
+		%svy_prev	(	 _data			= xx_dataset,
 					 _outcome		= &_outcome,
 					 _factor		= &_factor,
 					 _byvar			= &_byvar,
@@ -338,15 +237,15 @@ run;
 					 _domainvalue	= &_domainvalue,
 					 _strata		= &_strata,
 					 _cluster		= &_cluster,
-	                 _weight		= &_weight,
+	                 		 _weight		= &_weight,
 					 _missval_opts	= &_missval_opts,
 					 _est_decimal	= &_est_decimal,
-					_p_value_decimal= &_p_value_decimal);
+					 _p_value_decimal= &_p_value_decimal);
 	%end;
 
 %* for row percentages;
 	%if %upcase(&_cat_type) = ROW %then %do;
-		%svy_row	(_data			= xx_dataset,
+		%svy_row	(	_data			= xx_dataset,
 					 _outcome		= &_outcome,
 					 _factor		= &_factor,
 					 _byvar			= &_byvar,
@@ -356,15 +255,15 @@ run;
 					 _domainvalue	= &_domainvalue,
 					 _strata		= &_strata,
 					 _cluster		= &_cluster,
-	                 _weight		= &_weight,
+	                 		 _weight		= &_weight,
 					 _missval_opts	= &_missval_opts,
 					 _est_decimal	= &_est_decimal,
-					_p_value_decimal= &_p_value_decimal);
+					 _p_value_decimal= &_p_value_decimal);
 	%end;
 
 %* for column percentages;
 	%if %upcase(&_cat_type) = COL %then %do;
-		%svy_col(_data			= xx_dataset,
+		%svy_col(	 _data			= xx_dataset,
 				 _outcome		= &_outcome,
 				 _factor		= &_factor,
 				 _byvar			= &_byvar,
@@ -374,10 +273,10 @@ run;
 				 _domainvalue	= &_domainvalue,
 				 _strata		= &_strata,
 				 _cluster		= &_cluster,
-                 _weight		= &_weight,
+                 		 _weight		= &_weight,
 				 _missval_opts	= &_missval_opts,
 				 _est_decimal	= &_est_decimal,
-				_p_value_decimal= &_p_value_decimal);
+				 _p_value_decimal= &_p_value_decimal);
 
 	%end;
 
@@ -405,7 +304,7 @@ run;
     %let _contvar  =  %scan(&_contvars,&vii); 
 		%if %upcase(&_cont_type)=MEDIAN %then %do;
 
-			%svy_median(_data		= xx_dataset,
+			%svy_median(		_data		= xx_dataset,
 						_outcome	= &_outcome,
 						_outvalue	= &_outvalue,
 						_contvar	= &_contvar,
@@ -415,15 +314,15 @@ run;
 					  	_domainvalue= &_domainvalue,
 						_strata		= &_strata,
 						_cluster	= &_cluster,
-				        _weight		= &_weight,
-					 _missval_opts	= &_missval_opts,
-					 _est_decimal	= &_est_decimal,
-					_p_value_decimal= &_p_value_decimal);
+				        	_weight		= &_weight,
+					 	_missval_opts	= &_missval_opts,
+					 	_est_decimal	= &_est_decimal,
+						_p_value_decimal= &_p_value_decimal);
 
 		%end;
 
 		%if %upcase(&_cont_type)=MEAN %then %do;
-			%svy_mean(	_data		= xx_dataset,
+			%svy_mean(		_data		= xx_dataset,
 						_outcome	= &_outcome,
 						_outvalue	= &_outvalue,
 						_contvar	= &_contvar,
@@ -433,10 +332,10 @@ run;
 					  	_domainvalue= &_domainvalue,
 						_strata		= &_strata,
 						_cluster	= &_cluster,
-				        _weight		= &_weight,
-					 _missval_opts	= &_missval_opts,
-					 _est_decimal	= &_est_decimal,
-					_p_value_decimal= &_p_value_decimal);
+				        	_weight		= &_weight,
+					 	_missval_opts	= &_missval_opts,
+					 	_est_decimal	= &_est_decimal,
+						_p_value_decimal= &_p_value_decimal);
 
 		%end;
 
@@ -714,7 +613,7 @@ ods exclude none;
 %mend svy_freqs;
 
 %* main cross tabulation macro for column percentages;
-%macro svy_col(	_data=,
+%macro svy_col(			_data=,
 				_condition=,
 				_outcome=,
 				_outvalue=,
@@ -725,7 +624,7 @@ ods exclude none;
 				_domainvalue=,
 				_strata=,
 				_cluster=,
-                _weight=,
+                		_weight=,
 				_missval_opts=,
 				_est_decimal=,
 				_p_value_decimal=);
@@ -1049,7 +948,7 @@ run;
 %mend svy_col;
 
 %* main cross tabulation macro for row percentages;
-%macro svy_row(	_data=,
+%macro svy_row(			_data=,
 				_outcome=,
 				_outvalue=,
 				_byvar=,
@@ -1059,7 +958,7 @@ run;
 				_domainvalue=,
 				_strata=,
 				_cluster=,
-                _weight=,
+                		_weight=,
 				_missval_opts=,
 				_est_decimal=,
 				_p_value_decimal=);
@@ -1420,7 +1319,7 @@ run;
 %mend svy_row;
 
 %* main macro for prevalence;
-%macro svy_prev(_data=,
+%macro svy_prev(		_data=,
 				_outcome=,
 				_outvalue=,
 				_factor=,
@@ -1430,7 +1329,7 @@ run;
 				_domainvalue=,
 				_strata=,
 				_cluster=,
-                _weight=,
+                		_weight=,
 				_missval_opts=,
 				_est_decimal=,
 				_p_value_decimal=);
@@ -1750,7 +1649,7 @@ run;
 %mend svy_prev;
 
 %* macro to compute Median (IQR);
-%macro svy_median (	_data=,
+%macro svy_median (			_data=,
 					_outcome=,
 					_contvar=,
 					_missval_lab=,
@@ -1760,7 +1659,7 @@ run;
 					_domainvalue=,
 					_strata=,
 					_cluster=,
-	                _weight=,
+	                		_weight=,
 					_missval_opts=,
 					_est_decimal=,
 					_p_value_decimal=);
@@ -2147,7 +2046,7 @@ run;
 %mend svy_median;
 
 %* macro to compute Mean (95% CI);
-%macro svy_mean (	_data=,
+%macro svy_mean (			_data=,
 					_outcome=,
 					_contvar=,
 					_missval_lab=,
@@ -2157,7 +2056,7 @@ run;
 					_domainvalue=,
 					_strata=,
 					_cluster=,
-	                _weight=,
+	                		_weight=,
 					_missval_opts=,
 					_est_decimal=,
 					_p_value_decimal=);
