@@ -10,8 +10,8 @@ In summary, the macro has been design to provide the user with the following ben
 
 - Automated to shorten analysis time and eliminate error that arise during copy-pasting of analysis output.
 - Promote principles of reproducible research i.e., transparency, reproducibility, reusability.
-- Flexible to perform multiple functions i.e., analyse either categorical variables or continous variables or both in one macro call.
-- Generic to use datasets from survey and non-survey setting.
+- Flexible to combine multiple analyses i.e., analyse either categorical variables or continous variables or both.
+- Generic to perform multiple functions i.e., output column/row/prevalence percentages, and mean/median estimates.
 - Provide options for dealing with missing data e.g., include in output or suppress.
 - For survey data allow for specification for variance estimation methods e.g., Jackknife & Balanced Repeated Replication.
 - Produce outputs with natural display of results useful in epidemiological and biomedical publications.
